@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  web:
+    image: nginx:1.20
+    ports:
+      - "80:80"
+  
+  app:
+    image: node:16
+    volumes:
+      - ./app:/usr/src/app
+  
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_PASSWORD: password

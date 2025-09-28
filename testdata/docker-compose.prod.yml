@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  web:
+    image: nginx:1.21-alpine
+    
+  api:
+    image: myregistry.com:5000/myapp:v1.2.3
+    
+  cache:
+    image: redis@sha256:abc123def456

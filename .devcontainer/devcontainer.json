@@ -1,0 +1,24 @@
+{
+    "name": "Docker Image Reporter (Go)",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "features": {
+        
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "golang.go",
+                "ms-vscode.vscode-docker",
+                "ms-vscode.test-adapter-converter"
+            ]
+        }
+    },
+    // Ensure the host workspace folder is bind-mounted into the container at /workspace
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+    "postCreateCommand": "go mod tidy && go mod download",
+    "remoteUser": "vscode",
+    "workspaceFolder": "/workspace"
+}

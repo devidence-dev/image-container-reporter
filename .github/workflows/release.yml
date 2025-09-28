@@ -1,0 +1,170 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run tests
+      run: go test ./... -coverprofile=coverage.out
+
+    - name: Generate coverage report
+      run: go tool cover -func=coverage.out
+
+    - name: Install govulncheck
+      run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+    - name: Security scan
+      run: govulncheck ./...
+
+    - name: Create release directory
+      run: mkdir -p release
+
+    - name: Build binaries
+      run: |
+        # Build matrix for target platforms (prioritizing ARM64)
+        platforms=(
+          "linux/amd64"
+          "linux/arm64"
+          "darwin/amd64"
+          "darwin/arm64"
+          "windows/amd64"
+        )
+
+        for platform in "${platforms[@]}"; do
+          GOOS=${platform%/*}
+          GOARCH=${platform#*/}
+          BINARY_NAME="docker-image-reporter-${GOOS}-${GOARCH}"
+
+          if [ "$GOOS" = "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+
+          echo "Building for $GOOS/$GOARCH"
+          CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
+            -ldflags="-w -s -X main.version=${GITHUB_REF#refs/tags/v}" \
+            -o "release/$BINARY_NAME" \
+            ./main.go
+
+          # Generate SHA256 checksum
+          sha256sum "release/$BINARY_NAME" > "release/${BINARY_NAME}.sha256"
+        done
+
+    - name: Create release notes
+      run: |
+        cat > release/RELEASE_NOTES.md << 'EOF'
+        # Docker Image Reporter ${{ github.ref_name }}
+
+        A tool to scan docker-compose files and report available updates for Docker images from various registries.
+
+        ## What's New
+
+        This release includes bug fixes and improvements.
+
+        ## Installation
+
+        Download the appropriate binary for your platform from the assets below.
+
+        ### Linux/macOS
+        ```bash
+        # Download and verify
+        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-image-reporter-linux-amd64
+        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-image-reporter-linux-amd64.sha256
+        sha256sum -c docker-image-reporter-linux-amd64.sha256
+
+        # Make executable and move to PATH
+        chmod +x docker-image-reporter-linux-amd64
+        sudo mv docker-image-reporter-linux-amd64 /usr/local/bin/docker-image-reporter
+        ```
+
+        ### ARM64 (Raspberry Pi, Apple Silicon)
+        ```bash
+        # For ARM64 platforms
+        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-image-reporter-linux-arm64
+        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-image-reporter-linux-arm64.sha256
+        sha256sum -c docker-image-reporter-linux-arm64.sha256
+
+        chmod +x docker-image-reporter-linux-arm64
+        sudo mv docker-image-reporter-linux-arm64 /usr/local/bin/docker-image-reporter
+        ```
+
+        ### Windows
+        ```powershell
+        # Download the exe file
+        Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-image-reporter-windows-amd64.exe" -OutFile "docker-image-reporter.exe"
+
+        # Verify checksum (optional)
+        Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-image-reporter-windows-amd64.exe.sha256" -OutFile "checksum.txt"
+        # Manually verify the checksum matches
+        ```
+
+        ## Usage
+
+        ```bash
+        # Scan current directory
+        docker-image-reporter scan
+
+        # Scan specific path
+        docker-image-reporter scan /path/to/docker-compose.yml
+
+        # Scan and send Telegram notification
+        docker-image-reporter scan --notify
+        ```
+
+        ## Configuration
+
+        Create a configuration file at `~/.docker-image-reporter/config.yml`:
+
+        ```yaml
+        telegram:
+          bot_token: "your_bot_token_here"
+          chat_id: "your_chat_id_here"
+
+        registries:
+          github:
+            token: "your_github_token_here"
+        ```
+
+        For detailed documentation, see: https://github.com/${{ github.repository }}/blob/main/README.md
+        EOF
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/*
+        body_path: release/RELEASE_NOTES.md
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
