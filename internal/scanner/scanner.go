@@ -214,9 +214,7 @@ func (s *Service) checkForUpdates(ctx context.Context, images map[string]types.D
 }
 
 // checkImageForUpdates checks a single image for updates
-func (s *Service) checkImageForUpdates(ctx context.Context, serviceKey string, image types.DockerImage,
-	updatesChan chan<- types.ImageUpdate, upToDateChan chan<- string, errorsChan chan<- string) {
-
+func (s *Service) checkImageForUpdates(ctx context.Context, serviceKey string, image types.DockerImage, updatesChan chan<- types.ImageUpdate, upToDateChan chan<- string, errorsChan chan<- string) {
 	serviceName := strings.Split(serviceKey, ":")[0]
 
 	s.logger.Debug("Checking image for updates", "service", serviceName, "image", image.String())

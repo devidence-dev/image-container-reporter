@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v3"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/user/docker-image-reporter/pkg/types"
 )
@@ -170,7 +170,7 @@ func TestRunConfigGet(t *testing.T) {
 
 	cmd := newConfigGetCmd()
 	cmd.Flags().StringP("config", "c", "", "Path to configuration file")
-	cmd.Flags().Set("config", configPath)
+	cmd.Flags().Set("config", configPath) //nolint:errcheck,gosec
 	buf := &bytes.Buffer{}
 	cmd.SetOut(buf)
 
@@ -387,5 +387,5 @@ func saveTestConfig(cfg *types.Config, path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }

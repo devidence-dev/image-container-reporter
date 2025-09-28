@@ -18,6 +18,12 @@ import (
 	"github.com/user/docker-image-reporter/pkg/types"
 )
 
+// Output format constants
+const (
+	formatHTML = "html"
+	formatJSON = "json"
+)
+
 // newScanCmd crea el comando scan
 func newScanCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -68,20 +74,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 		"output", outputFormat)
 
 	// Crear servicios
-	scanSvc, err := createScanService(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create scan service: %w", err)
-	}
+	scanSvc := createScanService(cfg)
 
-	reportSvc, err := createReportService()
-	if err != nil {
-		return fmt.Errorf("failed to create report service: %w", err)
-	}
+	reportSvc := createReportService()
 
-	notifySvc, err := createNotificationService(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create notification service: %w", err)
-	}
+	notifySvc := createNotificationService(cfg)
 
 	// Ejecutar el escaneo
 	ctx := cmd.Context()
@@ -119,7 +116,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func createScanService(cfg *types.Config) (*scanner.Service, error) {
+func createScanService(cfg *types.Config) *scanner.Service {
 	// Crear parser de compose
 	composeParser := compose.NewParser()
 
@@ -141,20 +138,20 @@ func createScanService(cfg *types.Config) (*scanner.Service, error) {
 	// Crear scanner
 	scanSvc := scanner.NewService(composeParser, registryClients, slog.Default())
 
-	return scanSvc, nil
+	return scanSvc
 }
 
-func createReportService() (*reportService, error) {
+func createReportService() *reportService {
 	jsonFormatter := &report.JSONFormatter{}
 	htmlFormatter := &report.HTMLFormatter{}
 
 	return &reportService{
 		jsonFormatter: jsonFormatter,
 		htmlFormatter: htmlFormatter,
-	}, nil
+	}
 }
 
-func createNotificationService(cfg *types.Config) (*notifier.NotificationService, error) {
+func createNotificationService(cfg *types.Config) *notifier.NotificationService {
 	notifySvc := notifier.NewNotificationService()
 
 	// Agregar cliente de Telegram si está configurado
@@ -163,7 +160,7 @@ func createNotificationService(cfg *types.Config) (*notifier.NotificationService
 		notifySvc.AddClient(telegramClient)
 	}
 
-	return notifySvc, nil
+	return notifySvc
 }
 
 func outputResult(cmd *cobra.Command, result types.ScanResult, format, outputFile string, reportSvc *reportService) error {
@@ -171,10 +168,10 @@ func outputResult(cmd *cobra.Command, result types.ScanResult, format, outputFil
 	var ext string
 
 	switch strings.ToLower(format) {
-	case "json":
+	case formatJSON:
 		formatter = reportSvc.jsonFormatter
 		ext = ".json"
-	case "html":
+	case formatHTML:
 		formatter = reportSvc.htmlFormatter
 		ext = ".html"
 	default:
@@ -193,7 +190,7 @@ func outputResult(cmd *cobra.Command, result types.ScanResult, format, outputFil
 			outputFile += ext
 		}
 
-		if err := os.WriteFile(outputFile, []byte(output), 0644); err != nil {
+		if err := os.WriteFile(outputFile, []byte(output), 0600); err != nil {
 			return fmt.Errorf("failed to write output file: %w", err)
 		}
 
@@ -235,7 +232,7 @@ func outputConsole(cmd *cobra.Command, result types.ScanResult) error {
 
 func getFormatter(format string, reportSvc *reportService) types.ReportFormatter {
 	switch strings.ToLower(format) {
-	case "html":
+	case formatHTML:
 		return reportSvc.htmlFormatter
 	default:
 		return reportSvc.jsonFormatter

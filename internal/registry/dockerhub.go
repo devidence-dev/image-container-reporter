@@ -62,7 +62,7 @@ func (d *DockerHubClient) GetLatestTags(ctx context.Context, image types.DockerI
 	if err != nil {
 		return nil, errors.Wrapf("dockerhub.GetLatestTags", err, "making request to %s", url)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, errors.Newf("dockerhub.GetLatestTags", "repository %s not found", repository)
@@ -115,7 +115,7 @@ func (d *DockerHubClient) GetImageInfo(ctx context.Context, image types.DockerIm
 	if err != nil {
 		return nil, errors.Wrapf("dockerhub.GetImageInfo", err, "making request to %s", url)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, errors.Newf("dockerhub.GetImageInfo", "repository %s not found", repository)
@@ -140,7 +140,7 @@ func (d *DockerHubClient) GetImageInfo(ctx context.Context, image types.DockerIm
 	return &types.ImageInfo{
 		Tags:         tags,
 		LastModified: parseDockerHubTime(repoInfo.LastUpdated),
-		Size:         0, // Docker Hub API pública no proporciona tamaño fácilmente
+		Size:         0,       // Docker Hub API pública no proporciona tamaño fácilmente
 		Architecture: "amd64", // Asumir amd64 por defecto
 	}, nil
 }
@@ -149,12 +149,12 @@ func (d *DockerHubClient) GetImageInfo(ctx context.Context, image types.DockerIm
 func (d *DockerHubClient) normalizeRepository(repository string) string {
 	// Remover docker.io/ si está presente
 	repository = strings.TrimPrefix(repository, "docker.io/")
-	
+
 	// Si no tiene namespace, agregar library/
 	if !strings.Contains(repository, "/") {
 		return "library/" + repository
 	}
-	
+
 	return repository
 }
 
@@ -173,7 +173,7 @@ func (d *DockerHubClient) isValidTag(tag string) bool {
 	}
 
 	tagLower := strings.ToLower(tag)
-	
+
 	// Permitir latest pero ponerlo al final
 	if tagLower == "latest" {
 		return true
@@ -197,7 +197,7 @@ func (d *DockerHubClient) isValidTag(tag string) bool {
 // isHexString verifica si una string es hexadecimal
 func isHexString(s string) bool {
 	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) { //nolint:staticcheck
 			return false
 		}
 	}
@@ -226,18 +226,18 @@ func parseDockerHubTime(timeStr string) time.Time {
 
 // DockerHubTagsResponse representa la respuesta de la API de tags de Docker Hub
 type DockerHubTagsResponse struct {
-	Count    int                 `json:"count"`
-	Next     *string             `json:"next"`
-	Previous *string             `json:"previous"`
-	Results  []DockerHubTagInfo  `json:"results"`
+	Count    int                `json:"count"`
+	Next     *string            `json:"next"`
+	Previous *string            `json:"previous"`
+	Results  []DockerHubTagInfo `json:"results"`
 }
 
 // DockerHubTagInfo representa información de un tag en Docker Hub
 type DockerHubTagInfo struct {
-	Name        string    `json:"name"`
-	FullSize    int64     `json:"full_size"`
-	LastUpdated string    `json:"last_updated"`
-	LastPushed  string    `json:"last_pushed"`
+	Name        string `json:"name"`
+	FullSize    int64  `json:"full_size"`
+	LastUpdated string `json:"last_updated"`
+	LastPushed  string `json:"last_pushed"`
 	Images      []struct {
 		Architecture string `json:"architecture"`
 		OS           string `json:"os"`

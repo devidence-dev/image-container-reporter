@@ -20,11 +20,11 @@ func main() {
 
 	// Crear contexto que se puede cancelar con señales del sistema
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
 
 	// Ejecutar el comando raíz
 	rootCmd := cmd.NewRootCmd()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
+		cancel()
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}

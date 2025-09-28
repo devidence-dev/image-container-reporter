@@ -56,24 +56,21 @@ func TestLoadFromEnv(t *testing.T) {
 	defer func() {
 		for key, value := range originalVars {
 			if value == "" {
-				os.Unsetenv(key)
+				os.Unsetenv(key) //nolint:errcheck
 			} else {
-				os.Setenv(key, value)
+				os.Setenv(key, value) //nolint:errcheck,gosec
 			}
 		}
 	}()
 
 	// Configurar variables de entorno de prueba
-	os.Setenv("TELEGRAM_BOT_TOKEN", "test-bot-token")
-	os.Setenv("TELEGRAM_CHAT_ID", "test-chat-id")
-	os.Setenv("TELEGRAM_ENABLED", "true")
-	os.Setenv("GITHUB_TOKEN", "test-github-token")
+	os.Setenv("TELEGRAM_BOT_TOKEN", "test-bot-token") //nolint:errcheck,gosec
+	os.Setenv("TELEGRAM_CHAT_ID", "test-chat-id")     //nolint:errcheck,gosec
+	os.Setenv("TELEGRAM_ENABLED", "true")             //nolint:errcheck,gosec
+	os.Setenv("GITHUB_TOKEN", "test-github-token")    //nolint:errcheck,gosec
 
 	cfg := DefaultConfig()
-	err := loadFromEnv(cfg)
-	if err != nil {
-		t.Fatalf("loadFromEnv failed: %v", err)
-	}
+	loadFromEnv(cfg)
 
 	// Verificar que las variables se cargaron correctamente
 	if cfg.Telegram.BotToken != "test-bot-token" {

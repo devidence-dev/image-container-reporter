@@ -59,7 +59,7 @@ func TestGHCRClient_isValidTag(t *testing.T) {
 		{"latest", true},
 		{"main", true},
 		{"", false},
-		{"abc123def456", false}, // SHA-like
+		{"abc123def456", false},     // SHA-like
 		{"1234567890abcdef", false}, // SHA-like
 		{"temp-build", false},
 		{"tmp-123", false},
@@ -115,7 +115,7 @@ func TestGHCRClient_GetLatestTags_MockServer(t *testing.T) {
 			]`
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(response))
+			w.Write([]byte(response)) //nolint:errcheck,gosec
 			return
 		}
 
@@ -186,7 +186,7 @@ func TestGHCRClient_GetImageInfo_MockServer(t *testing.T) {
 			}`
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(response))
+			w.Write([]byte(response)) //nolint:errcheck,gosec
 			return
 		}
 
@@ -206,7 +206,7 @@ func TestGHCRClient_GetImageInfo_MockServer(t *testing.T) {
 			]`
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(response))
+			w.Write([]byte(response)) //nolint:errcheck,gosec
 			return
 		}
 
@@ -287,7 +287,7 @@ func TestParseGitHubTime(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			result := parseGitHubTime(tt.input)
-			
+
 			if tt.expected {
 				// Verificar que el tiempo parseado no sea el tiempo actual
 				now := time.Now()

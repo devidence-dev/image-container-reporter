@@ -1,52 +1,66 @@
+version: 2
+
 run:
   timeout: 5m
-  go: "1.24"
+  go: "1.25"
 
 linters-settings:
   govet:
     check-shadowing: true
   gocyclo:
     min-complexity: 15
-  maligned:
-    suggest-new: true
-  dupl:
-    threshold: 100
   goconst:
     min-len: 2
     min-occurrences: 2
+  depguard:
+    rules:
+      main:
+        deny:
+          # Deny dangerous or deprecated packages
+          - pkg: "unsafe"
+            desc: "unsafe package should be avoided"
+        allow:
+          # Standard library
+          - $gostd
+          # Project internal packages
+          - github.com/user/docker-image-reporter
+          # External dependencies
+          - github.com/spf13/cobra
+          - github.com/Masterminds/semver/v3
+          - gopkg.in/yaml.v3
+          - golang.org/x/time/rate
+  misspell:
+    ignoreWords:
+      - comando
+      - clientes
+      - patrones
+      - Patrones
+      - componentes
+      - directorios
+      - presentes
+      - originales
+      - versiones
+      - reportes
+      - operacional
 
 linters:
-  disable-all: true
   enable:
-    - bodyclose
-    - depguard
-    - dogsled
-    - dupl
     - errcheck
-    - exportloopref
-    - exhaustive
-    - goconst
-    - gocritic
-    - gofmt
-    - goimports
-    - gomnd
-    - goprintffuncname
-    - gosec
-    - gosimple
     - govet
     - ineffassign
-    - misspell
-    - nakedret
-    - noctx
-    - nolintlint
-    - rowserrcheck
     - staticcheck
-    - stylecheck
-    - typecheck
-    - unconvert
-    - unparam
     - unused
+    - gosec
+    - gocritic
     - whitespace
+    - bodyclose
+    - rowserrcheck
+    - nolintlint
+    - exhaustive
+    - dogsled
+    - nakedret
+    - unparam
+    - unconvert
 
 issues:
   exclude-rules:

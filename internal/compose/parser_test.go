@@ -44,10 +44,10 @@ func TestParser_parseImageString(t *testing.T) {
 	parser := NewParser()
 
 	tests := []struct {
-		name           string
-		imageStr       string
-		expectedImage  types.DockerImage
-		expectError    bool
+		name          string
+		imageStr      string
+		expectedImage types.DockerImage
+		expectError   bool
 	}{
 		{
 			name:     "simple image",
@@ -133,7 +133,7 @@ func TestParser_parseImageString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := parser.parseImageString(tt.imageStr)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Error("Expected error but got none")
@@ -194,7 +194,7 @@ services:
     # No image, should be skipped
 `
 
-	err := os.WriteFile(composeFile, []byte(composeContent), 0644)
+	err := os.WriteFile(composeFile, []byte(composeContent), 0600)
 	if err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
@@ -284,7 +284,7 @@ services:
     invalid_yaml: [unclosed bracket
 `
 
-	err := os.WriteFile(composeFile, []byte(invalidContent), 0644)
+	err := os.WriteFile(composeFile, []byte(invalidContent), 0600)
 	if err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}

@@ -54,7 +54,7 @@ func TestDockerHubClient_isValidTag(t *testing.T) {
 		{"nightly", false},
 		{"dev", false},
 		{"development", false},
-		{"abc123def", false}, // SHA-like
+		{"abc123def", false},        // SHA-like
 		{"1234567890abcdef", false}, // SHA-like
 		{"edge", false},
 	}
@@ -84,7 +84,7 @@ func TestDockerHubClient_GetLatestTags(t *testing.T) {
 			}`
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(response))
+			w.Write([]byte(response)) //nolint:errcheck,gosec
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -136,7 +136,7 @@ func TestDockerHubClient_parseDockerHubTime(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			result := parseDockerHubTime(tt.input)
-			
+
 			if tt.expected {
 				// Verificar que el tiempo parseado no sea el tiempo actual (aproximadamente)
 				now := time.Now()

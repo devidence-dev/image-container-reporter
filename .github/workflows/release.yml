@@ -21,7 +21,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.24'
+        go-version: '1.25.1'
 
     - name: Cache Go modules
       uses: actions/cache@v4
@@ -65,7 +65,7 @@ jobs:
         for platform in "${platforms[@]}"; do
           GOOS=${platform%/*}
           GOARCH=${platform#*/}
-          BINARY_NAME="docker-image-reporter-${GOOS}-${GOARCH}"
+          BINARY_NAME="icr-${GOOS}-${GOARCH}"
 
           if [ "$GOOS" = "windows" ]; then
             BINARY_NAME="${BINARY_NAME}.exe"
@@ -84,9 +84,9 @@ jobs:
     - name: Create release notes
       run: |
         cat > release/RELEASE_NOTES.md << 'EOF'
-        # Docker Image Reporter ${{ github.ref_name }}
+        # Image Container Reporter (ICR) ${{ github.ref_name }}
 
-        A tool to scan docker-compose files and report available updates for Docker images from various registries.
+        A powerful tool to scan docker-compose files and report available updates for Docker images from various registries.
 
         ## What's New
 
@@ -96,36 +96,58 @@ jobs:
 
         Download the appropriate binary for your platform from the assets below.
 
-        ### Linux/macOS
+        ### Linux AMD64
         ```bash
         # Download and verify
-        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-image-reporter-linux-amd64
-        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-image-reporter-linux-amd64.sha256
-        sha256sum -c docker-image-reporter-linux-amd64.sha256
+        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-amd64
+        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-amd64.sha256
+        sha256sum -c icr-linux-amd64.sha256
 
         # Make executable and move to PATH
-        chmod +x docker-image-reporter-linux-amd64
-        sudo mv docker-image-reporter-linux-amd64 /usr/local/bin/docker-image-reporter
+        chmod +x icr-linux-amd64
+        sudo mv icr-linux-amd64 /usr/local/bin/icr
         ```
 
-        ### ARM64 (Raspberry Pi, Apple Silicon)
+        ### ARM64 (Raspberry Pi 5, Apple Silicon, etc.)
         ```bash
-        # For ARM64 platforms
-        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-image-reporter-linux-arm64
-        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-image-reporter-linux-arm64.sha256
-        sha256sum -c docker-image-reporter-linux-arm64.sha256
+        # For ARM64 platforms (Raspberry Pi 5, Apple M1/M2/M3, etc.)
+        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-arm64
+        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-arm64.sha256
+        sha256sum -c icr-linux-arm64.sha256
 
-        chmod +x docker-image-reporter-linux-arm64
-        sudo mv docker-image-reporter-linux-arm64 /usr/local/bin/docker-image-reporter
+        chmod +x icr-linux-arm64
+        sudo mv icr-linux-arm64 /usr/local/bin/icr
+        ```
+
+        ### macOS (Intel)
+        ```bash
+        # For Intel Macs
+        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-darwin-amd64
+        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-darwin-amd64.sha256
+        shasum -a 256 -c icr-darwin-amd64.sha256
+
+        chmod +x icr-darwin-amd64
+        sudo mv icr-darwin-amd64 /usr/local/bin/icr
+        ```
+
+        ### macOS (Apple Silicon)
+        ```bash
+        # For Apple Silicon Macs (M1/M2/M3)
+        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-darwin-arm64
+        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-darwin-arm64.sha256
+        shasum -a 256 -c icr-darwin-arm64.sha256
+
+        chmod +x icr-darwin-arm64
+        sudo mv icr-darwin-arm64 /usr/local/bin/icr
         ```
 
         ### Windows
         ```powershell
         # Download the exe file
-        Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-image-reporter-windows-amd64.exe" -OutFile "docker-image-reporter.exe"
+        Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-windows-amd64.exe" -OutFile "icr.exe"
 
         # Verify checksum (optional)
-        Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-image-reporter-windows-amd64.exe.sha256" -OutFile "checksum.txt"
+        Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-windows-amd64.exe.sha256" -OutFile "checksum.txt"
         # Manually verify the checksum matches
         ```
 
@@ -133,18 +155,18 @@ jobs:
 
         ```bash
         # Scan current directory
-        docker-image-reporter scan
+        icr scan
 
         # Scan specific path
-        docker-image-reporter scan /path/to/docker-compose.yml
+        icr scan /path/to/docker-compose.yml
 
         # Scan and send Telegram notification
-        docker-image-reporter scan --notify
+        icr scan --notify
         ```
 
         ## Configuration
 
-        Create a configuration file at `~/.docker-image-reporter/config.yml`:
+        Create a configuration file at `~/.icr/config.yml`:
 
         ```yaml
         telegram:

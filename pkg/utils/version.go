@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Masterminds/semver/v3"
+	semver "github.com/Masterminds/semver/v3"
 	"github.com/user/docker-image-reporter/pkg/types"
 )
 
@@ -14,7 +14,7 @@ var (
 		"alpha", "beta", "rc", "dev", "devel", "development",
 		"nightly", "snapshot", "test", "experimental", "canary",
 	}
-	
+
 	// Regex to detect if a version looks semantic
 	semverRegex = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)`)
 )
@@ -26,7 +26,7 @@ func CompareVersions(currentVersion, newVersion string) types.UpdateType {
 	if updateType := compareSemantic(currentVersion, newVersion); updateType != types.UpdateTypeUnknown {
 		return updateType
 	}
-	
+
 	// Fall back to string comparison
 	return compareString(currentVersion, newVersion)
 }
@@ -35,31 +35,31 @@ func CompareVersions(currentVersion, newVersion string) types.UpdateType {
 func compareSemantic(currentVersion, newVersion string) types.UpdateType {
 	currentSemver, err1 := semver.NewVersion(normalizeVersion(currentVersion))
 	newSemver, err2 := semver.NewVersion(normalizeVersion(newVersion))
-	
+
 	// If either version can't be parsed as semantic, return unknown
 	if err1 != nil || err2 != nil {
 		return types.UpdateTypeUnknown
 	}
-	
+
 	// Compare versions
 	comparison := newSemver.Compare(currentSemver)
 	if comparison <= 0 {
 		return types.UpdateTypeNone
 	}
-	
+
 	// Determine update type based on version differences
 	if newSemver.Major() > currentSemver.Major() {
 		return types.UpdateTypeMajor
 	}
-	
+
 	if newSemver.Minor() > currentSemver.Minor() {
 		return types.UpdateTypeMinor
 	}
-	
+
 	if newSemver.Patch() > currentSemver.Patch() {
 		return types.UpdateTypePatch
 	}
-	
+
 	// Pre-release or metadata changes
 	return types.UpdateTypePatch
 }
@@ -69,12 +69,12 @@ func compareString(currentVersion, newVersion string) types.UpdateType {
 	if currentVersion == newVersion {
 		return types.UpdateTypeNone
 	}
-	
+
 	// Simple lexicographic comparison
 	if newVersion > currentVersion {
 		return types.UpdateTypeUnknown
 	}
-	
+
 	return types.UpdateTypeNone
 }
 
@@ -82,7 +82,7 @@ func compareString(currentVersion, newVersion string) types.UpdateType {
 func normalizeVersion(version string) string {
 	// Remove 'v' prefix if present
 	normalized := strings.TrimPrefix(version, "v")
-	
+
 	// Remove common suffixes that might interfere with parsing
 	suffixes := []string{"-alpine", "-slim", "-scratch"}
 	for _, suffix := range suffixes {
@@ -91,19 +91,19 @@ func normalizeVersion(version string) string {
 			break
 		}
 	}
-	
+
 	return normalized
 }
 
 // IsPreRelease checks if a version string contains pre-release indicators
 func IsPreRelease(version string) bool {
 	lowerVersion := strings.ToLower(version)
-	
+
 	// Special cases that should not be considered pre-release
 	if lowerVersion == "latest" || lowerVersion == "stable" {
 		return false
 	}
-	
+
 	for _, pattern := range preReleasePatterns {
 		// Use word boundaries or specific patterns to avoid false positives
 		if strings.Contains(lowerVersion, pattern) {
@@ -114,7 +114,7 @@ func IsPreRelease(version string) bool {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -139,10 +139,10 @@ func SortVersions(versions []string) []string {
 	if len(versions) <= 1 {
 		return versions
 	}
-	
+
 	// Separate semantic and non-semantic versions
 	var semantic, nonSemantic []string
-	
+
 	for _, version := range versions {
 		if IsSemanticVersion(version) {
 			semantic = append(semantic, version)
@@ -150,18 +150,18 @@ func SortVersions(versions []string) []string {
 			nonSemantic = append(nonSemantic, version)
 		}
 	}
-	
+
 	// Sort semantic versions using semver
 	sortedSemantic := sortSemanticVersions(semantic)
-	
+
 	// Sort non-semantic versions lexicographically (reversed)
 	sortedNonSemantic := sortStringVersions(nonSemantic)
-	
+
 	// Combine results (semantic first, then non-semantic)
 	result := make([]string, 0, len(versions))
 	result = append(result, sortedSemantic...)
 	result = append(result, sortedNonSemantic...)
-	
+
 	return result
 }
 
@@ -170,20 +170,20 @@ func sortSemanticVersions(versions []string) []string {
 	if len(versions) <= 1 {
 		return versions
 	}
-	
+
 	// Convert to semver objects for sorting
 	type versionPair struct {
 		original string
 		semver   *semver.Version
 	}
-	
+
 	var pairs []versionPair
 	for _, version := range versions {
 		if sv, err := semver.NewVersion(normalizeVersion(version)); err == nil {
 			pairs = append(pairs, versionPair{original: version, semver: sv})
 		}
 	}
-	
+
 	// Sort in descending order (newest first)
 	for i := 0; i < len(pairs)-1; i++ {
 		for j := i + 1; j < len(pairs); j++ {
@@ -192,13 +192,13 @@ func sortSemanticVersions(versions []string) []string {
 			}
 		}
 	}
-	
+
 	// Extract original version strings
 	result := make([]string, len(pairs))
 	for i, pair := range pairs {
 		result[i] = pair.original
 	}
-	
+
 	return result
 }
 
@@ -207,11 +207,11 @@ func sortStringVersions(versions []string) []string {
 	if len(versions) <= 1 {
 		return versions
 	}
-	
+
 	// Simple bubble sort in descending order
 	sorted := make([]string, len(versions))
 	copy(sorted, versions)
-	
+
 	for i := 0; i < len(sorted)-1; i++ {
 		for j := i + 1; j < len(sorted); j++ {
 			if sorted[i] < sorted[j] {
@@ -219,7 +219,7 @@ func sortStringVersions(versions []string) []string {
 			}
 		}
 	}
-	
+
 	return sorted
 }
 
@@ -228,7 +228,7 @@ func GetLatestVersion(versions []string) string {
 	if len(versions) == 0 {
 		return ""
 	}
-	
+
 	sorted := SortVersions(versions)
 	return sorted[0]
 }
@@ -261,13 +261,13 @@ func DefaultUpdateFilter() UpdateFilter {
 // FilterUpdates filters a list of available versions based on the current version and filter preferences
 func FilterUpdates(currentVersion string, availableVersions []string, filter UpdateFilter) []string {
 	var filtered []string
-	
+
 	for _, version := range availableVersions {
 		if ShouldIncludeUpdate(currentVersion, version, filter) {
 			filtered = append(filtered, version)
 		}
 	}
-	
+
 	return filtered
 }
 
@@ -277,33 +277,33 @@ func ShouldIncludeUpdate(currentVersion, candidateVersion string, filter UpdateF
 	if !filter.IncludePreReleases && IsPreRelease(candidateVersion) {
 		return false
 	}
-	
+
 	// Skip if it matches any exclude pattern
 	if matchesExcludePatterns(candidateVersion, filter.ExcludePatterns) {
 		return false
 	}
-	
+
 	// Check if the update type meets the minimum requirement
 	updateType := CompareVersions(currentVersion, candidateVersion)
-	
+
 	// Skip if no update or update type is below minimum
 	if updateType == types.UpdateTypeNone {
 		return false
 	}
-	
+
 	return isUpdateTypeAcceptable(updateType, filter.MinUpdateType)
 }
 
 // matchesExcludePatterns checks if a version matches any of the exclude patterns
 func matchesExcludePatterns(version string, patterns []string) bool {
 	lowerVersion := strings.ToLower(version)
-	
+
 	for _, pattern := range patterns {
 		if strings.Contains(lowerVersion, strings.ToLower(pattern)) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -317,15 +317,15 @@ func isUpdateTypeAcceptable(updateType, minUpdateType types.UpdateType) bool {
 		types.UpdateTypeMajor:   3,
 		types.UpdateTypeUnknown: 1, // Treat unknown as patch level
 	}
-	
+
 	updateLevel, exists1 := hierarchy[updateType]
 	minLevel, exists2 := hierarchy[minUpdateType]
-	
+
 	// If either type is not in hierarchy, be conservative and allow it
 	if !exists1 || !exists2 {
 		return true
 	}
-	
+
 	return updateLevel >= minLevel
 }
 
@@ -337,7 +337,7 @@ func GetSignificantUpdates(currentVersion string, availableVersions []string) []
 		MinUpdateType:      types.UpdateTypeMinor,
 		ExcludePatterns:    DefaultUpdateFilter().ExcludePatterns,
 	}
-	
+
 	return FilterUpdates(currentVersion, availableVersions, filter)
 }
 
@@ -348,7 +348,7 @@ func GetAllStableUpdates(currentVersion string, availableVersions []string) []st
 		MinUpdateType:      types.UpdateTypePatch,
 		ExcludePatterns:    DefaultUpdateFilter().ExcludePatterns,
 	}
-	
+
 	return FilterUpdates(currentVersion, availableVersions, filter)
 }
 
@@ -365,7 +365,7 @@ func ClassifyVersionUpdate(currentVersion, newVersion string) UpdateClassificati
 	updateType := CompareVersions(currentVersion, newVersion)
 	isPreRelease := IsPreRelease(newVersion)
 	isSignificant := updateType == types.UpdateTypeMajor || updateType == types.UpdateTypeMinor
-	
+
 	var description string
 	switch updateType {
 	case types.UpdateTypeNone:
@@ -379,11 +379,11 @@ func ClassifyVersionUpdate(currentVersion, newVersion string) UpdateClassificati
 	case types.UpdateTypeUnknown:
 		description = "Update available (version format unknown)"
 	}
-	
+
 	if isPreRelease {
 		description += " (pre-release)"
 	}
-	
+
 	return UpdateClassification{
 		UpdateType:    updateType,
 		IsPreRelease:  isPreRelease,

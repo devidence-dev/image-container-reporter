@@ -81,7 +81,7 @@ func TestCompareVersions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := CompareVersions(tt.currentVersion, tt.newVersion)
 			if result != tt.expected {
-				t.Errorf("CompareVersions(%q, %q) = %v, want %v", 
+				t.Errorf("CompareVersions(%q, %q) = %v, want %v",
 					tt.currentVersion, tt.newVersion, result, tt.expected)
 			}
 		})
@@ -165,7 +165,7 @@ func TestFilterPreReleases(t *testing.T) {
 	}
 
 	result := FilterPreReleases(input)
-	
+
 	if len(result) != len(expected) {
 		t.Errorf("FilterPreReleases() returned %d items, want %d", len(result), len(expected))
 		return
@@ -214,7 +214,7 @@ func TestSortVersions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := SortVersions(tt.input)
-			
+
 			if len(result) != len(tt.expected) {
 				t.Errorf("SortVersions() returned %d items, want %d", len(result), len(tt.expected))
 				return
@@ -279,7 +279,7 @@ func TestGetLatestVersionExcludingPreReleases(t *testing.T) {
 
 	expected := "1.1.0"
 	result := GetLatestVersionExcludingPreReleases(input)
-	
+
 	if result != expected {
 		t.Errorf("GetLatestVersionExcludingPreReleases() = %q, want %q", result, expected)
 	}
@@ -312,19 +312,19 @@ func TestNormalizeVersion(t *testing.T) {
 
 func TestDefaultUpdateFilter(t *testing.T) {
 	filter := DefaultUpdateFilter()
-	
+
 	if filter.IncludePreReleases {
 		t.Error("DefaultUpdateFilter().IncludePreReleases should be false")
 	}
-	
+
 	if filter.MinUpdateType != types.UpdateTypePatch {
-		t.Errorf("DefaultUpdateFilter().MinUpdateType = %v, want %v", 
+		t.Errorf("DefaultUpdateFilter().MinUpdateType = %v, want %v",
 			filter.MinUpdateType, types.UpdateTypePatch)
 	}
-	
+
 	expectedPatterns := []string{"nightly", "snapshot", "temp", "tmp"}
 	if len(filter.ExcludePatterns) != len(expectedPatterns) {
-		t.Errorf("DefaultUpdateFilter().ExcludePatterns length = %d, want %d", 
+		t.Errorf("DefaultUpdateFilter().ExcludePatterns length = %d, want %d",
 			len(filter.ExcludePatterns), len(expectedPatterns))
 	}
 }
@@ -392,7 +392,7 @@ func TestShouldIncludeUpdate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ShouldIncludeUpdate(tt.currentVersion, tt.candidateVersion, tt.filter)
 			if result != tt.expected {
-				t.Errorf("ShouldIncludeUpdate(%q, %q, %+v) = %v, want %v", 
+				t.Errorf("ShouldIncludeUpdate(%q, %q, %+v) = %v, want %v",
 					tt.currentVersion, tt.candidateVersion, tt.filter, result, tt.expected)
 			}
 		})
@@ -402,13 +402,13 @@ func TestShouldIncludeUpdate(t *testing.T) {
 func TestFilterUpdates(t *testing.T) {
 	currentVersion := "1.0.0"
 	availableVersions := []string{
-		"0.9.0",        // older
-		"1.0.0",        // same
-		"1.0.1",        // patch
-		"1.0.2-alpha",  // patch pre-release
-		"1.1.0",        // minor
-		"1.1.0-beta",   // minor pre-release
-		"2.0.0",        // major
+		"0.9.0",         // older
+		"1.0.0",         // same
+		"1.0.1",         // patch
+		"1.0.2-alpha",   // patch pre-release
+		"1.1.0",         // minor
+		"1.1.0-beta",    // minor pre-release
+		"2.0.0",         // major
 		"1.0.1-nightly", // excluded pattern
 	}
 
@@ -445,7 +445,7 @@ func TestFilterUpdates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := FilterUpdates(currentVersion, availableVersions, tt.filter)
-			
+
 			if len(result) != len(tt.expected) {
 				t.Errorf("FilterUpdates() returned %d items, want %d", len(result), len(tt.expected))
 				t.Errorf("Got: %v", result)
@@ -465,16 +465,16 @@ func TestFilterUpdates(t *testing.T) {
 func TestGetSignificantUpdates(t *testing.T) {
 	currentVersion := "1.0.0"
 	availableVersions := []string{
-		"1.0.1",        // patch - should be excluded
-		"1.0.2-alpha",  // patch pre-release - should be excluded
-		"1.1.0",        // minor - should be included
-		"1.1.0-beta",   // minor pre-release - should be excluded
-		"2.0.0",        // major - should be included
+		"1.0.1",       // patch - should be excluded
+		"1.0.2-alpha", // patch pre-release - should be excluded
+		"1.1.0",       // minor - should be included
+		"1.1.0-beta",  // minor pre-release - should be excluded
+		"2.0.0",       // major - should be included
 	}
 
 	expected := []string{"1.1.0", "2.0.0"}
 	result := GetSignificantUpdates(currentVersion, availableVersions)
-	
+
 	if len(result) != len(expected) {
 		t.Errorf("GetSignificantUpdates() returned %d items, want %d", len(result), len(expected))
 		return
@@ -490,17 +490,17 @@ func TestGetSignificantUpdates(t *testing.T) {
 func TestGetAllStableUpdates(t *testing.T) {
 	currentVersion := "1.0.0"
 	availableVersions := []string{
-		"1.0.1",        // patch - should be included
-		"1.0.2-alpha",  // patch pre-release - should be excluded
-		"1.1.0",        // minor - should be included
-		"1.1.0-beta",   // minor pre-release - should be excluded
-		"2.0.0",        // major - should be included
+		"1.0.1",         // patch - should be included
+		"1.0.2-alpha",   // patch pre-release - should be excluded
+		"1.1.0",         // minor - should be included
+		"1.1.0-beta",    // minor pre-release - should be excluded
+		"2.0.0",         // major - should be included
 		"1.0.1-nightly", // excluded pattern - should be excluded
 	}
 
 	expected := []string{"1.0.1", "1.1.0", "2.0.0"}
 	result := GetAllStableUpdates(currentVersion, availableVersions)
-	
+
 	if len(result) != len(expected) {
 		t.Errorf("GetAllStableUpdates() returned %d items, want %d", len(result), len(expected))
 		return
@@ -573,19 +573,19 @@ func TestClassifyVersionUpdate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ClassifyVersionUpdate(tt.currentVersion, tt.newVersion)
-			
+
 			if result.UpdateType != tt.expectedType {
 				t.Errorf("UpdateType = %v, want %v", result.UpdateType, tt.expectedType)
 			}
-			
+
 			if result.IsPreRelease != tt.expectedPre {
 				t.Errorf("IsPreRelease = %v, want %v", result.IsPreRelease, tt.expectedPre)
 			}
-			
+
 			if result.IsSignificant != tt.expectedSig {
 				t.Errorf("IsSignificant = %v, want %v", result.IsSignificant, tt.expectedSig)
 			}
-			
+
 			if result.Description != tt.expectedDesc {
 				t.Errorf("Description = %q, want %q", result.Description, tt.expectedDesc)
 			}

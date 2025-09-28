@@ -14,6 +14,11 @@ import (
 	"github.com/user/docker-image-reporter/pkg/types"
 )
 
+// Registry name constants
+const (
+	ghcrRegistryName = "GitHub Container Registry"
+)
+
 // newTestCmd crea el comando test
 func newTestCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -149,7 +154,7 @@ func testRegistries(cmd *cobra.Command, cfg *types.Config) error {
 			Tag:        "latest",
 		}
 
-		if clientNames[i] == "GitHub Container Registry" {
+		if clientNames[i] == ghcrRegistryName {
 			testImage = types.DockerImage{
 				Registry:   "ghcr.io",
 				Repository: "octocat/hello-world",

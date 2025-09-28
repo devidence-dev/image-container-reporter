@@ -12,6 +12,23 @@ import (
 	"github.com/user/docker-image-reporter/pkg/types"
 )
 
+// Configuration section and field constants
+const (
+	configTelegram  = "telegram"
+	configRegistry  = "registry"
+	configScan      = "scan"
+	configEnabled   = "enabled"
+	configTimeout   = "timeout"
+	configBotToken  = "bot_token"
+	configChatID    = "chat_id"
+	configTemplate  = "template"
+	configDockerHub = "dockerhub"
+	configGHCR      = "ghcr"
+	configToken     = "token"
+	configRecursive = "recursive"
+	configPatterns  = "patterns"
+)
+
 // newConfigCmd crea el comando config
 func newConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -133,11 +150,11 @@ func setConfigValue(cfg *types.Config, key, value string) error {
 	subkey := strings.ToLower(parts[1])
 
 	switch section {
-	case "telegram":
+	case configTelegram:
 		return setTelegramConfig(cfg, subkey, value)
-	case "registry":
+	case configRegistry:
 		return setRegistryConfig(cfg, parts[1:], value)
-	case "scan":
+	case configScan:
 		return setScanConfig(cfg, subkey, value)
 	default:
 		return fmt.Errorf("unknown configuration section: %s", section)
@@ -155,11 +172,11 @@ func getConfigValue(cfg *types.Config, key string) (string, error) {
 	subkey := strings.ToLower(parts[1])
 
 	switch section {
-	case "telegram":
+	case configTelegram:
 		return getTelegramConfig(cfg, subkey)
-	case "registry":
+	case configRegistry:
 		return getRegistryConfig(cfg, parts[1:])
-	case "scan":
+	case configScan:
 		return getScanConfig(cfg, subkey)
 	default:
 		return "", fmt.Errorf("unknown configuration section: %s", section)
@@ -169,17 +186,17 @@ func getConfigValue(cfg *types.Config, key string) (string, error) {
 // Funciones auxiliares para Telegram
 func setTelegramConfig(cfg *types.Config, key, value string) error {
 	switch key {
-	case "enabled":
+	case configEnabled:
 		val, err := strconv.ParseBool(value)
 		if err != nil {
 			return fmt.Errorf("invalid boolean value: %s", value)
 		}
 		cfg.Telegram.Enabled = val
-	case "bot_token":
+	case configBotToken:
 		cfg.Telegram.BotToken = value
-	case "chat_id":
+	case configChatID:
 		cfg.Telegram.ChatID = value
-	case "template":
+	case configTemplate:
 		cfg.Telegram.Template = value
 	default:
 		return fmt.Errorf("unknown telegram key: %s", key)
@@ -189,13 +206,13 @@ func setTelegramConfig(cfg *types.Config, key, value string) error {
 
 func getTelegramConfig(cfg *types.Config, key string) (string, error) {
 	switch key {
-	case "enabled":
+	case configEnabled:
 		return strconv.FormatBool(cfg.Telegram.Enabled), nil
-	case "bot_token":
+	case configBotToken:
 		return cfg.Telegram.BotToken, nil
-	case "chat_id":
+	case configChatID:
 		return cfg.Telegram.ChatID, nil
-	case "template":
+	case configTemplate:
 		return cfg.Telegram.Template, nil
 	default:
 		return "", fmt.Errorf("unknown telegram key: %s", key)
@@ -212,11 +229,11 @@ func setRegistryConfig(cfg *types.Config, keys []string, value string) error {
 	subkey := strings.ToLower(keys[1])
 
 	switch provider {
-	case "dockerhub":
+	case configDockerHub:
 		return setDockerHubConfig(cfg, subkey, value)
-	case "ghcr":
+	case configGHCR:
 		return setGHCRConfig(cfg, subkey, value)
-	case "timeout":
+	case configTimeout:
 		val, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("invalid timeout value: %s", value)
@@ -239,11 +256,11 @@ func getRegistryConfig(cfg *types.Config, keys []string) (string, error) {
 	subkey := strings.ToLower(keys[1])
 
 	switch provider {
-	case "dockerhub":
+	case configDockerHub:
 		return getDockerHubConfig(cfg, subkey)
-	case "ghcr":
+	case configGHCR:
 		return getGHCRConfig(cfg, subkey)
-	case "timeout":
+	case configTimeout:
 		return strconv.Itoa(cfg.Registry.Timeout), nil
 	default:
 		return "", fmt.Errorf("unknown registry provider: %s", provider)
@@ -252,13 +269,13 @@ func getRegistryConfig(cfg *types.Config, keys []string) (string, error) {
 
 func setDockerHubConfig(cfg *types.Config, key, value string) error {
 	switch key {
-	case "enabled":
+	case configEnabled:
 		val, err := strconv.ParseBool(value)
 		if err != nil {
 			return fmt.Errorf("invalid boolean value: %s", value)
 		}
 		cfg.Registry.DockerHub.Enabled = val
-	case "timeout":
+	case configTimeout:
 		val, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("invalid timeout value: %s", value)
@@ -272,9 +289,9 @@ func setDockerHubConfig(cfg *types.Config, key, value string) error {
 
 func getDockerHubConfig(cfg *types.Config, key string) (string, error) {
 	switch key {
-	case "enabled":
+	case configEnabled:
 		return strconv.FormatBool(cfg.Registry.DockerHub.Enabled), nil
-	case "timeout":
+	case configTimeout:
 		return strconv.Itoa(cfg.Registry.DockerHub.Timeout), nil
 	default:
 		return "", fmt.Errorf("unknown dockerhub key: %s", key)
@@ -283,15 +300,15 @@ func getDockerHubConfig(cfg *types.Config, key string) (string, error) {
 
 func setGHCRConfig(cfg *types.Config, key, value string) error {
 	switch key {
-	case "enabled":
+	case configEnabled:
 		val, err := strconv.ParseBool(value)
 		if err != nil {
 			return fmt.Errorf("invalid boolean value: %s", value)
 		}
 		cfg.Registry.GHCR.Enabled = val
-	case "token":
+	case configToken:
 		cfg.Registry.GHCR.Token = value
-	case "timeout":
+	case configTimeout:
 		val, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("invalid timeout value: %s", value)
@@ -305,11 +322,11 @@ func setGHCRConfig(cfg *types.Config, key, value string) error {
 
 func getGHCRConfig(cfg *types.Config, key string) (string, error) {
 	switch key {
-	case "enabled":
+	case configEnabled:
 		return strconv.FormatBool(cfg.Registry.GHCR.Enabled), nil
-	case "token":
+	case configToken:
 		return cfg.Registry.GHCR.Token, nil
-	case "timeout":
+	case configTimeout:
 		return strconv.Itoa(cfg.Registry.GHCR.Timeout), nil
 	default:
 		return "", fmt.Errorf("unknown ghcr key: %s", key)
@@ -319,19 +336,19 @@ func getGHCRConfig(cfg *types.Config, key string) (string, error) {
 // Funciones auxiliares para Scan
 func setScanConfig(cfg *types.Config, key, value string) error {
 	switch key {
-	case "recursive":
+	case configRecursive:
 		val, err := strconv.ParseBool(value)
 		if err != nil {
 			return fmt.Errorf("invalid boolean value: %s", value)
 		}
 		cfg.Scan.Recursive = val
-	case "timeout":
+	case configTimeout:
 		val, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("invalid timeout value: %s", value)
 		}
 		cfg.Scan.Timeout = val
-	case "patterns":
+	case configPatterns:
 		cfg.Scan.Patterns = strings.Split(value, ",")
 		// Trim whitespace
 		for i, pattern := range cfg.Scan.Patterns {
@@ -345,11 +362,11 @@ func setScanConfig(cfg *types.Config, key, value string) error {
 
 func getScanConfig(cfg *types.Config, key string) (string, error) {
 	switch key {
-	case "recursive":
+	case configRecursive:
 		return strconv.FormatBool(cfg.Scan.Recursive), nil
-	case "timeout":
+	case configTimeout:
 		return strconv.Itoa(cfg.Scan.Timeout), nil
-	case "patterns":
+	case configPatterns:
 		return strings.Join(cfg.Scan.Patterns, ","), nil
 	default:
 		return "", fmt.Errorf("unknown scan key: %s", key)

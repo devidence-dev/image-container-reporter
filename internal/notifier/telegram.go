@@ -96,7 +96,7 @@ func (t *TelegramClient) sendRequest(ctx context.Context, url string, jsonData [
 	if err != nil {
 		return errors.Wrap("telegram.sendRequest", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Leer la respuesta
 	body, err := io.ReadAll(resp.Body)

@@ -29,7 +29,7 @@ func (r ScanResult) HasErrors() bool {
 // Summary devuelve un resumen del resultado del escaneo
 func (r ScanResult) Summary() string {
 	if r.HasUpdates() {
-		return fmt.Sprintf("%d updates available, %d services up to date", 
+		return fmt.Sprintf("%d updates available, %d services up to date",
 			len(r.UpdatesAvailable), len(r.UpToDateServices))
 	}
 	return fmt.Sprintf("All %d services are up to date", len(r.UpToDateServices))

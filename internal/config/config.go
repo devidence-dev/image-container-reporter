@@ -8,7 +8,7 @@ import (
 
 	"github.com/user/docker-image-reporter/pkg/errors"
 	"github.com/user/docker-image-reporter/pkg/types"
-	"gopkg.in/yaml.v3"
+	yaml "gopkg.in/yaml.v3"
 )
 
 const (
@@ -38,9 +38,7 @@ func Load(configPath string) (*types.Config, error) {
 	}
 
 	// Sobrescribir con variables de entorno
-	if err := loadFromEnv(cfg); err != nil {
-		return nil, errors.Wrap("config.Load", err)
-	}
+	loadFromEnv(cfg)
 
 	// Validar configuración
 	if err := validate(cfg); err != nil {
@@ -82,7 +80,7 @@ func DefaultConfig() *types.Config {
 
 // loadFromFile carga la configuración desde un archivo YAML
 func loadFromFile(cfg *types.Config, filePath string) error {
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(filePath) //nolint:gosec
 	if err != nil {
 		return err
 	}
@@ -95,7 +93,7 @@ func loadFromFile(cfg *types.Config, filePath string) error {
 }
 
 // loadFromEnv carga configuración desde variables de entorno
-func loadFromEnv(cfg *types.Config) error {
+func loadFromEnv(cfg *types.Config) {
 	// Telegram configuration
 	if token := os.Getenv("TELEGRAM_BOT_TOKEN"); token != "" {
 		cfg.Telegram.BotToken = token
@@ -141,11 +139,7 @@ func loadFromEnv(cfg *types.Config) error {
 			cfg.Scan.Timeout = val
 		}
 	}
-
-	return nil
 }
-
-// validate valida la configuración
 func validate(cfg *types.Config) error {
 	// Validar configuración de Telegram si está habilitada
 	if cfg.Telegram.Enabled {
@@ -181,7 +175,7 @@ func Save(cfg *types.Config, configPath string) error {
 			return errors.Wrap("config.Save", err)
 		}
 		configDir := filepath.Join(homeDir, DefaultConfigDir)
-		if err := os.MkdirAll(configDir, 0755); err != nil {
+		if err := os.MkdirAll(configDir, 0750); err != nil {
 			return errors.Wrapf("config.Save", err, "creating config directory %s", configDir)
 		}
 		configPath = filepath.Join(configDir, DefaultConfigFile)

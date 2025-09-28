@@ -24,10 +24,10 @@ func (e *CacheEntry) IsExpired() bool {
 
 // CacheStats holds statistics about cache usage
 type CacheStats struct {
-	Hits     int64 `json:"hits"`
-	Misses   int64 `json:"misses"`
-	Evicted  int64 `json:"evicted"`
-	Size     int64 `json:"size"`
+	Hits    int64 `json:"hits"`
+	Misses  int64 `json:"misses"`
+	Evicted int64 `json:"evicted"`
+	Size    int64 `json:"size"`
 }
 
 // HitRate returns the cache hit rate as a percentage
@@ -68,34 +68,34 @@ func NewRegistryCache(config Config) *RegistryCache {
 		defaultTTL:  config.DefaultTTL,
 		stopCleanup: make(chan struct{}),
 	}
-	
+
 	// Start background cleanup goroutine
 	if config.CleanupInterval > 0 {
 		cache.cleanupTick = time.NewTicker(config.CleanupInterval)
 		go cache.cleanupLoop()
 	}
-	
+
 	return cache
 }
 
 // GetTags retrieves cached tags for an image
 func (c *RegistryCache) GetTags(image types.DockerImage) ([]string, bool) {
 	key := c.makeKey(image, "tags")
-	
+
 	if value, ok := c.cache.Load(key); ok {
 		entry := value.(*CacheEntry)
-		
+
 		if !entry.IsExpired() {
 			atomic.AddInt64(&c.stats.Hits, 1)
 			return entry.Tags, true
 		}
-		
+
 		// Entry expired, remove it
 		c.cache.Delete(key)
 		atomic.AddInt64(&c.stats.Evicted, 1)
 		atomic.AddInt64(&c.stats.Size, -1)
 	}
-	
+
 	atomic.AddInt64(&c.stats.Misses, 1)
 	return nil, false
 }
@@ -108,14 +108,14 @@ func (c *RegistryCache) SetTags(image types.DockerImage, tags []string) {
 // SetTagsWithTTL caches tags for an image with custom TTL
 func (c *RegistryCache) SetTagsWithTTL(image types.DockerImage, tags []string, ttl time.Duration) {
 	key := c.makeKey(image, "tags")
-	
+
 	entry := &CacheEntry{
 		Tags:      make([]string, len(tags)), // Create a copy to avoid external modifications
 		Timestamp: time.Now(),
 		TTL:       ttl,
 	}
 	copy(entry.Tags, tags)
-	
+
 	// Check if this is a new entry
 	_, existed := c.cache.LoadOrStore(key, entry)
 	if !existed {
@@ -129,21 +129,21 @@ func (c *RegistryCache) SetTagsWithTTL(image types.DockerImage, tags []string, t
 // GetImageInfo retrieves cached image info
 func (c *RegistryCache) GetImageInfo(image types.DockerImage) (*types.ImageInfo, bool) {
 	key := c.makeKey(image, "info")
-	
+
 	if value, ok := c.cache.Load(key); ok {
 		entry := value.(*CacheEntry)
-		
+
 		if !entry.IsExpired() {
 			atomic.AddInt64(&c.stats.Hits, 1)
 			return entry.ImageInfo, true
 		}
-		
+
 		// Entry expired, remove it
 		c.cache.Delete(key)
 		atomic.AddInt64(&c.stats.Evicted, 1)
 		atomic.AddInt64(&c.stats.Size, -1)
 	}
-	
+
 	atomic.AddInt64(&c.stats.Misses, 1)
 	return nil, false
 }
@@ -156,13 +156,13 @@ func (c *RegistryCache) SetImageInfo(image types.DockerImage, info *types.ImageI
 // SetImageInfoWithTTL caches image info with custom TTL
 func (c *RegistryCache) SetImageInfoWithTTL(image types.DockerImage, info *types.ImageInfo, ttl time.Duration) {
 	key := c.makeKey(image, "info")
-	
+
 	entry := &CacheEntry{
 		ImageInfo: info,
 		Timestamp: time.Now(),
 		TTL:       ttl,
 	}
-	
+
 	// Check if this is a new entry
 	_, existed := c.cache.LoadOrStore(key, entry)
 	if !existed {
@@ -179,7 +179,7 @@ func (c *RegistryCache) Clear() {
 		c.cache.Delete(key)
 		return true
 	})
-	
+
 	atomic.StoreInt64(&c.stats.Size, 0)
 	atomic.AddInt64(&c.stats.Evicted, atomic.LoadInt64(&c.stats.Size))
 }
@@ -223,7 +223,7 @@ func (c *RegistryCache) cleanupLoop() {
 // cleanupExpired removes all expired entries from the cache
 func (c *RegistryCache) cleanupExpired() {
 	var keysToDelete []interface{}
-	
+
 	// First pass: collect expired keys
 	c.cache.Range(func(key, value interface{}) bool {
 		entry := value.(*CacheEntry)
@@ -232,7 +232,7 @@ func (c *RegistryCache) cleanupExpired() {
 		}
 		return true
 	})
-	
+
 	// Second pass: delete expired keys
 	for _, key := range keysToDelete {
 		c.cache.Delete(key)
@@ -266,16 +266,16 @@ func (c *CachedRegistryClient) GetLatestTags(ctx context.Context, image types.Do
 	if tags, found := c.cache.GetTags(image); found {
 		return tags, nil
 	}
-	
+
 	// Cache miss, fetch from registry
 	tags, err := c.client.GetLatestTags(ctx, image)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Cache the result
 	c.cache.SetTags(image, tags)
-	
+
 	return tags, nil
 }
 
@@ -285,15 +285,15 @@ func (c *CachedRegistryClient) GetImageInfo(ctx context.Context, image types.Doc
 	if info, found := c.cache.GetImageInfo(image); found {
 		return info, nil
 	}
-	
+
 	// Cache miss, fetch from registry
 	info, err := c.client.GetImageInfo(ctx, image)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Cache the result
 	c.cache.SetImageInfo(image, info)
-	
+
 	return info, nil
 }

@@ -74,7 +74,7 @@ func (g *GHCRClient) GetLatestTags(ctx context.Context, image types.DockerImage)
 	if err != nil {
 		return nil, errors.Wrapf("ghcr.GetLatestTags", err, "making request to %s", url)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, errors.Newf("ghcr.GetLatestTags", "package %s not found or not accessible", image.Repository)
@@ -142,7 +142,7 @@ func (g *GHCRClient) GetImageInfo(ctx context.Context, image types.DockerImage) 
 	if err != nil {
 		return nil, errors.Wrapf("ghcr.GetImageInfo", err, "making request to %s", url)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, errors.Newf("ghcr.GetImageInfo", "package %s not found or not accessible", image.Repository)
@@ -167,7 +167,7 @@ func (g *GHCRClient) GetImageInfo(ctx context.Context, image types.DockerImage) 
 	return &types.ImageInfo{
 		Tags:         tags,
 		LastModified: parseGitHubTime(packageInfo.UpdatedAt),
-		Size:         0, // GitHub Packages API no proporciona tamaño fácilmente
+		Size:         0,       // GitHub Packages API no proporciona tamaño fácilmente
 		Architecture: "amd64", // Asumir amd64 por defecto
 	}, nil
 }
@@ -176,7 +176,7 @@ func (g *GHCRClient) GetImageInfo(ctx context.Context, image types.DockerImage) 
 func (g *GHCRClient) parseRepository(repository string) (string, string) {
 	// Remover ghcr.io/ si está presente
 	repository = strings.TrimPrefix(repository, "ghcr.io/")
-	
+
 	parts := strings.Split(repository, "/")
 	if len(parts) < 2 {
 		return "", ""

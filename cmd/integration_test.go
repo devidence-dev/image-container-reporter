@@ -33,10 +33,7 @@ func TestScanWorkflowIntegration(t *testing.T) {
 	}
 
 	// Test that we can create scanner service
-	scanSvc, err := createScanServiceForTest(cfg)
-	if err != nil {
-		t.Fatalf("Failed to create scan service: %v", err)
-	}
+	scanSvc := createScanServiceForTest(cfg)
 
 	// Test scanning testdata directory
 	testDataPath := "../testdata"
@@ -136,7 +133,7 @@ func TestComposeParserIntegration(t *testing.T) {
 }
 
 // Helper function to create scan service for testing
-func createScanServiceForTest(cfg *types.Config) (*scanner.Service, error) {
+func createScanServiceForTest(cfg *types.Config) *scanner.Service {
 	// This duplicates the logic from cmd/scan.go but for testing
 	composeParser := compose.NewParser()
 
@@ -154,5 +151,5 @@ func createScanServiceForTest(cfg *types.Config) (*scanner.Service, error) {
 		registryClients = append(registryClients, client)
 	}
 
-	return scanner.NewService(composeParser, registryClients, slog.Default()), nil
+	return scanner.NewService(composeParser, registryClients, slog.Default())
 }

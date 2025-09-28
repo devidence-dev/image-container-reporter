@@ -17,29 +17,29 @@ func TestScanner_FindComposeFiles(t *testing.T) {
 
 	// Crear archivos de prueba
 	files := map[string]string{
-		"docker-compose.yml":      "version: '3'\nservices:\n  web:\n    image: nginx",
-		"docker-compose.prod.yml": "version: '3'\nservices:\n  web:\n    image: nginx:prod",
-		"compose.yml":             "version: '3'\nservices:\n  app:\n    image: app:latest",
-		"Dockerfile":              "FROM nginx",
-		"config.yaml":             "key: value",
+		"docker-compose.yml":        "version: '3'\nservices:\n  web:\n    image: nginx",
+		"docker-compose.prod.yml":   "version: '3'\nservices:\n  web:\n    image: nginx:prod",
+		"compose.yml":               "version: '3'\nservices:\n  app:\n    image: app:latest",
+		"Dockerfile":                "FROM nginx",
+		"config.yaml":               "key: value",
 		"subdir/docker-compose.yml": "version: '3'\nservices:\n  db:\n    image: postgres",
 	}
 
 	for filePath, content := range files {
 		fullPath := filepath.Join(tempDir, filePath)
 		dir := filepath.Dir(fullPath)
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil { //nolint:gosec
 			t.Fatalf("Failed to create directory %s: %v", dir, err)
 		}
-		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(fullPath, []byte(content), 0600); err != nil {
 			t.Fatalf("Failed to create file %s: %v", fullPath, err)
 		}
 	}
 
 	tests := []struct {
-		name      string
-		config    types.ScanConfig
-		expected  []string
+		name     string
+		config   types.ScanConfig
+		expected []string
 	}{
 		{
 			name: "recursive scan",
@@ -49,7 +49,7 @@ func TestScanner_FindComposeFiles(t *testing.T) {
 			},
 			expected: []string{
 				"docker-compose.yml",
-				"docker-compose.prod.yml", 
+				"docker-compose.prod.yml",
 				"compose.yml",
 				"subdir/docker-compose.yml",
 			},
@@ -135,7 +135,7 @@ services:
 `
 
 	composeFile := filepath.Join(tempDir, "docker-compose.yml")
-	if err := os.WriteFile(composeFile, []byte(composeContent), 0644); err != nil {
+	if err := os.WriteFile(composeFile, []byte(composeContent), 0600); err != nil {
 		t.Fatalf("Failed to create compose file: %v", err)
 	}
 
@@ -228,7 +228,7 @@ func TestScanner_matchesPatterns(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := scanner.matchesPatterns(tt.filePath, tt.patterns)
 			if result != tt.expected {
-				t.Errorf("matchesPatterns(%s, %v) = %v, want %v", 
+				t.Errorf("matchesPatterns(%s, %v) = %v, want %v",
 					tt.filePath, tt.patterns, result, tt.expected)
 			}
 		})
@@ -256,7 +256,7 @@ func TestScanner_shouldSkipDirectory(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := scanner.shouldSkipDirectory(tt.dirName)
 			if result != tt.expected {
-				t.Errorf("shouldSkipDirectory(%s) = %v, want %v", 
+				t.Errorf("shouldSkipDirectory(%s) = %v, want %v",
 					tt.dirName, result, tt.expected)
 			}
 		})

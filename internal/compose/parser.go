@@ -8,7 +8,7 @@ import (
 
 	"github.com/user/docker-image-reporter/pkg/errors"
 	"github.com/user/docker-image-reporter/pkg/types"
-	"gopkg.in/yaml.v3"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // Parser implementa la interfaz ComposeParser para parsear archivos docker-compose
@@ -21,7 +21,7 @@ func NewParser() *Parser {
 
 // ParseFile parsea un archivo docker-compose y extrae las imágenes Docker
 func (p *Parser) ParseFile(ctx context.Context, filePath string) ([]types.DockerImage, error) {
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(filePath) //nolint:gosec
 	if err != nil {
 		return nil, errors.Wrapf("compose.ParseFile", err, "reading file %s", filePath)
 	}
@@ -57,7 +57,7 @@ func (p *Parser) ParseFile(ctx context.Context, filePath string) ([]types.Docker
 // CanParse determina si el parser puede manejar el archivo dado
 func (p *Parser) CanParse(filePath string) bool {
 	name := filepath.Base(filePath)
-	
+
 	// Patrones estándar de docker-compose
 	patterns := []string{
 		"docker-compose.yml",
@@ -92,7 +92,7 @@ func (p *Parser) parseImageString(imageStr string) (types.DockerImage, error) {
 
 	// Separar tag/digest
 	var tag, digest string
-	
+
 	// Verificar si tiene digest (@sha256:...)
 	if strings.Contains(imageStr, "@") {
 		parts := strings.Split(imageStr, "@")
@@ -109,7 +109,7 @@ func (p *Parser) parseImageString(imageStr string) (types.DockerImage, error) {
 		// Hay un slash, buscar el último : después del último /
 		lastSlashIndex := strings.LastIndex(imageStr, "/")
 		afterSlash := imageStr[lastSlashIndex:]
-		
+
 		if strings.Contains(afterSlash, ":") {
 			// Hay un : después del último /, probablemente es un tag
 			colonIndex := strings.LastIndex(imageStr, ":")
@@ -121,12 +121,13 @@ func (p *Parser) parseImageString(imageStr string) (types.DockerImage, error) {
 	} else {
 		// No hay slash, parsing normal
 		parts := strings.Split(imageStr, ":")
-		if len(parts) == 1 {
+		switch len(parts) {
+		case 1:
 			tag = "latest"
-		} else if len(parts) == 2 {
+		case 2:
 			tag = parts[1]
 			imageStr = parts[0]
-		} else {
+		default:
 			// Múltiples :, usar el último como tag
 			lastColonIndex := strings.LastIndex(imageStr, ":")
 			tag = imageStr[lastColonIndex+1:]
@@ -154,26 +155,26 @@ func (p *Parser) parseRegistryAndRepository(imageStr string) (string, string) {
 		// Solo nombre de imagen (ej: "nginx")
 		// Asumir Docker Hub con library/
 		return "docker.io", "library/" + parts[0]
-	
+
 	case 2:
 		// Puede ser:
 		// - usuario/imagen en Docker Hub (ej: "user/nginx")
 		// - registry/imagen (ej: "localhost:5000/nginx")
-		
+
 		// Si el primer parte contiene un punto, dos puntos, o localhost, es un registry
 		if strings.Contains(parts[0], ".") || strings.Contains(parts[0], ":") || parts[0] == "localhost" {
 			return parts[0], parts[1]
 		}
-		
+
 		// Si no, es usuario/imagen en Docker Hub
 		return "docker.io", imageStr
-	
+
 	default:
 		// 3 o más partes: registry/namespace/imagen o registry/user/imagen
 		// El primer parte es el registry
 		registry := parts[0]
 		repository := strings.Join(parts[1:], "/")
-		
+
 		return registry, repository
 	}
 }

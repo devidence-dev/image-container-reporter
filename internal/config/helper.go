@@ -10,6 +10,27 @@ import (
 	"github.com/user/docker-image-reporter/pkg/types"
 )
 
+// Configuration keys and values constants
+const (
+	// Configuration section keys
+	keyTelegram  = "telegram"
+	keyRegistry  = "registry"
+	keyScan      = "scan"
+	keyEnabled   = "enabled"
+	keyTimeout   = "timeout"
+	keyBotToken  = "bot_token"
+	keyChatID    = "chat_id"
+	keyTemplate  = "template"
+	keyDockerHub = "dockerhub"
+	keyGHCR      = "ghcr"
+	keyToken     = "token"
+	keyRecursive = "recursive"
+	keyPatterns  = "patterns"
+
+	// Configuration values
+	valueTrue = "true"
+)
+
 // GetConfigPath devuelve la ruta del archivo de configuración
 func GetConfigPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
@@ -27,7 +48,7 @@ func EnsureConfigDir() error {
 	}
 
 	configDir := filepath.Join(homeDir, DefaultConfigDir)
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0750); err != nil {
 		return errors.Wrapf("config.EnsureConfigDir", err, "creating directory %s", configDir)
 	}
 
@@ -42,11 +63,11 @@ func SetValue(cfg *types.Config, key, value string) error {
 	}
 
 	switch parts[0] {
-	case "telegram":
+	case keyTelegram:
 		return setTelegramValue(cfg, parts[1:], value)
-	case "registry":
+	case keyRegistry:
 		return setRegistryValue(cfg, parts[1:], value)
-	case "scan":
+	case keyScan:
 		return setScanValue(cfg, parts[1:], value)
 	default:
 		return errors.Newf("config.SetValue", "unknown config section: %s", parts[0])
@@ -61,11 +82,11 @@ func GetValue(cfg *types.Config, key string) (string, error) {
 	}
 
 	switch parts[0] {
-	case "telegram":
+	case keyTelegram:
 		return getTelegramValue(cfg, parts[1:])
-	case "registry":
+	case keyRegistry:
 		return getRegistryValue(cfg, parts[1:])
-	case "scan":
+	case keyScan:
 		return getScanValue(cfg, parts[1:])
 	default:
 		return "", errors.Newf("config.GetValue", "unknown config section: %s", parts[0])
@@ -78,14 +99,14 @@ func setTelegramValue(cfg *types.Config, parts []string, value string) error {
 	}
 
 	switch parts[0] {
-	case "bot_token":
+	case keyBotToken:
 		cfg.Telegram.BotToken = value
-	case "chat_id":
+	case keyChatID:
 		cfg.Telegram.ChatID = value
-	case "enabled":
-		enabled := strings.ToLower(value) == "true"
+	case keyEnabled:
+		enabled := strings.ToLower(value) == valueTrue
 		cfg.Telegram.Enabled = enabled
-	case "template":
+	case keyTemplate:
 		cfg.Telegram.Template = value
 	default:
 		return errors.Newf("config.setTelegramValue", "unknown telegram field: %s", parts[0])
@@ -100,13 +121,13 @@ func getTelegramValue(cfg *types.Config, parts []string) (string, error) {
 	}
 
 	switch parts[0] {
-	case "bot_token":
+	case keyBotToken:
 		return cfg.Telegram.BotToken, nil
-	case "chat_id":
+	case keyChatID:
 		return cfg.Telegram.ChatID, nil
-	case "enabled":
+	case keyEnabled:
 		return fmt.Sprintf("%t", cfg.Telegram.Enabled), nil
-	case "template":
+	case keyTemplate:
 		return cfg.Telegram.Template, nil
 	default:
 		return "", errors.Newf("config.getTelegramValue", "unknown telegram field: %s", parts[0])
@@ -119,33 +140,33 @@ func setRegistryValue(cfg *types.Config, parts []string, value string) error {
 	}
 
 	switch parts[0] {
-	case "timeout":
+	case keyTimeout:
 		// Parse timeout value
 		var timeout int
 		if _, err := fmt.Sscanf(value, "%d", &timeout); err != nil {
 			return errors.Wrapf("config.setRegistryValue", err, "invalid timeout value: %s", value)
 		}
 		cfg.Registry.Timeout = timeout
-	case "dockerhub":
+	case keyDockerHub:
 		if len(parts) < 2 {
 			return errors.New("config.setRegistryValue", "missing dockerhub field")
 		}
 		switch parts[1] {
-		case "enabled":
-			enabled := strings.ToLower(value) == "true"
+		case keyEnabled:
+			enabled := strings.ToLower(value) == valueTrue
 			cfg.Registry.DockerHub.Enabled = enabled
 		default:
 			return errors.Newf("config.setRegistryValue", "unknown dockerhub field: %s", parts[1])
 		}
-	case "ghcr":
+	case keyGHCR:
 		if len(parts) < 2 {
 			return errors.New("config.setRegistryValue", "missing ghcr field")
 		}
 		switch parts[1] {
-		case "enabled":
-			enabled := strings.ToLower(value) == "true"
+		case keyEnabled:
+			enabled := strings.ToLower(value) == valueTrue
 			cfg.Registry.GHCR.Enabled = enabled
-		case "token":
+		case keyToken:
 			cfg.Registry.GHCR.Token = value
 		default:
 			return errors.Newf("config.setRegistryValue", "unknown ghcr field: %s", parts[1])
@@ -163,26 +184,26 @@ func getRegistryValue(cfg *types.Config, parts []string) (string, error) {
 	}
 
 	switch parts[0] {
-	case "timeout":
+	case keyTimeout:
 		return fmt.Sprintf("%d", cfg.Registry.Timeout), nil
-	case "dockerhub":
+	case keyDockerHub:
 		if len(parts) < 2 {
 			return "", errors.New("config.getRegistryValue", "missing dockerhub field")
 		}
 		switch parts[1] {
-		case "enabled":
+		case keyEnabled:
 			return fmt.Sprintf("%t", cfg.Registry.DockerHub.Enabled), nil
 		default:
 			return "", errors.Newf("config.getRegistryValue", "unknown dockerhub field: %s", parts[1])
 		}
-	case "ghcr":
+	case keyGHCR:
 		if len(parts) < 2 {
 			return "", errors.New("config.getRegistryValue", "missing ghcr field")
 		}
 		switch parts[1] {
-		case "enabled":
+		case keyEnabled:
 			return fmt.Sprintf("%t", cfg.Registry.GHCR.Enabled), nil
-		case "token":
+		case keyToken:
 			// No mostrar el token completo por seguridad
 			if cfg.Registry.GHCR.Token == "" {
 				return "", nil
@@ -202,17 +223,17 @@ func setScanValue(cfg *types.Config, parts []string, value string) error {
 	}
 
 	switch parts[0] {
-	case "recursive":
-		enabled := strings.ToLower(value) == "true"
+	case keyRecursive:
+		enabled := strings.ToLower(value) == valueTrue
 		cfg.Scan.Recursive = enabled
-	case "patterns":
+	case keyPatterns:
 		// Split comma-separated patterns
 		patterns := strings.Split(value, ",")
 		for i, pattern := range patterns {
 			patterns[i] = strings.TrimSpace(pattern)
 		}
 		cfg.Scan.Patterns = patterns
-	case "timeout":
+	case keyTimeout:
 		var timeout int
 		if _, err := fmt.Sscanf(value, "%d", &timeout); err != nil {
 			return errors.Wrapf("config.setScanValue", err, "invalid timeout value: %s", value)
@@ -231,11 +252,11 @@ func getScanValue(cfg *types.Config, parts []string) (string, error) {
 	}
 
 	switch parts[0] {
-	case "recursive":
+	case keyRecursive:
 		return fmt.Sprintf("%t", cfg.Scan.Recursive), nil
-	case "patterns":
+	case keyPatterns:
 		return strings.Join(cfg.Scan.Patterns, ", "), nil
-	case "timeout":
+	case keyTimeout:
 		return fmt.Sprintf("%d", cfg.Scan.Timeout), nil
 	default:
 		return "", errors.Newf("config.getScanValue", "unknown scan field: %s", parts[0])
