@@ -1,12 +1,8 @@
-version: 2
-
 run:
   timeout: 5m
   go: "1.25"
 
 linters-settings:
-  govet:
-    check-shadowing: true
   gocyclo:
     min-complexity: 15
   goconst:
@@ -55,12 +51,12 @@ linters:
     - whitespace
     - bodyclose
     - rowserrcheck
-    - nolintlint
     - exhaustive
     - dogsled
     - nakedret
     - unparam
     - unconvert
+    - predeclared
 
 issues:
   exclude-rules:

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -61,7 +62,7 @@ func (s *Service) ScanDirectory(ctx context.Context, path string, config Config)
 	if len(files) == 0 {
 		s.logger.Warn("No compose files found", "path", path)
 		return &types.ScanResult{
-			ProjectName:      filepath.Base(path),
+			ProjectName:      s.getProjectName(path),
 			ScanTimestamp:    time.Now(),
 			UpdatesAvailable: []types.ImageUpdate{},
 			UpToDateServices: []string{},
@@ -83,7 +84,7 @@ func (s *Service) ScanDirectory(ctx context.Context, path string, config Config)
 	allErrors = append(allErrors, checkErrors...)
 
 	result := &types.ScanResult{
-		ProjectName:        filepath.Base(path),
+		ProjectName:        s.getProjectName(path),
 		ScanTimestamp:      time.Now(),
 		UpdatesAvailable:   updates,
 		UpToDateServices:   upToDate,
@@ -288,6 +289,19 @@ func (s *Service) checkImageForUpdates(ctx context.Context, serviceKey string, i
 		"current", image.Tag,
 		"latest", latestTag,
 		"type", updateType)
+}
+
+// getProjectName determines a meaningful project name from the scan path
+func (s *Service) getProjectName(path string) string {
+	// If path is ".", use the current working directory name
+	if path == "." {
+		if cwd, err := os.Getwd(); err == nil {
+			return filepath.Base(cwd)
+		}
+	}
+
+	// Otherwise, use the base name of the path
+	return filepath.Base(path)
 }
 
 // canHandleRegistry checks if a registry client can handle the given registry

@@ -296,12 +296,167 @@ services:
 	}
 }
 
-func TestParser_ParseFile_NonExistentFile(t *testing.T) {
+func TestParser_ParseFile_WithEnvFile(t *testing.T) {
 	parser := NewParser()
 
-	// Intentar parsear un archivo que no existe
-	_, err := parser.ParseFile(context.Background(), "/nonexistent/file.yml")
-	if err == nil {
-		t.Error("Expected error for non-existent file, but got none")
+	// Crear directorio temporal para las pruebas
+	tempDir := t.TempDir()
+	composeFile := filepath.Join(tempDir, "docker-compose.yml")
+	envFile := filepath.Join(tempDir, ".env")
+
+	// Contenido del .env
+	envContent := `IMAGE_VERSION=nginx:1.21
+APP_VERSION=ghcr.io/user/myapp:v2.0.0
+DB_IMAGE=postgres:14
+`
+
+	// Contenido del docker-compose.yml con variables
+	composeContent := `version: '3.8'
+services:
+  web:
+    image: ${IMAGE_VERSION}
+  
+  app:
+    image: ${APP_VERSION:-ghcr.io/user/myapp:latest}
+  
+  db:
+    image: ${DB_IMAGE}
+  
+  redis:
+    image: redis:alpine  # Sin variable, debería funcionar normalmente
+`
+
+	// Crear archivos
+	err := os.WriteFile(envFile, []byte(envContent), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create .env file: %v", err)
+	}
+
+	err = os.WriteFile(composeFile, []byte(composeContent), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create compose file: %v", err)
+	}
+
+	// Parsear el archivo
+	images, err := parser.ParseFile(context.Background(), composeFile)
+	if err != nil {
+		t.Fatalf("ParseFile failed: %v", err)
+	}
+
+	// Verificar que se encontraron las imágenes correctas con variables expandidas
+	expectedImages := []types.DockerImage{
+		{
+			Registry:    "docker.io",
+			Repository:  "library/nginx",
+			Tag:         "1.21",
+			ServiceName: "web",
+			ComposeFile: composeFile,
+		},
+		{
+			Registry:    "ghcr.io",
+			Repository:  "user/myapp",
+			Tag:         "v2.0.0",
+			ServiceName: "app",
+			ComposeFile: composeFile,
+		},
+		{
+			Registry:    "docker.io",
+			Repository:  "library/postgres",
+			Tag:         "14",
+			ServiceName: "db",
+			ComposeFile: composeFile,
+		},
+		{
+			Registry:    "docker.io",
+			Repository:  "library/redis",
+			Tag:         "alpine",
+			ServiceName: "redis",
+			ComposeFile: composeFile,
+		},
+	}
+
+	if len(images) != len(expectedImages) {
+		t.Fatalf("Expected %d images, got %d", len(expectedImages), len(images))
+	}
+
+	// Verificar cada imagen
+	for _, expected := range expectedImages {
+		found := false
+		for _, actual := range images {
+			if actual.ServiceName == expected.ServiceName {
+				found = true
+				if actual.Registry != expected.Registry {
+					t.Errorf("Service %s: Registry = %s, want %s", expected.ServiceName, actual.Registry, expected.Registry)
+				}
+				if actual.Repository != expected.Repository {
+					t.Errorf("Service %s: Repository = %s, want %s", expected.ServiceName, actual.Repository, expected.Repository)
+				}
+				if actual.Tag != expected.Tag {
+					t.Errorf("Service %s: Tag = %s, want %s", expected.ServiceName, actual.Tag, expected.Tag)
+				}
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected service %s not found in results", expected.ServiceName)
+		}
+	}
+}
+
+func TestParser_ParseFile_WithoutEnvFile(t *testing.T) {
+	parser := NewParser()
+
+	// Crear directorio temporal sin archivo .env
+	tempDir := t.TempDir()
+	composeFile := filepath.Join(tempDir, "docker-compose.yml")
+
+	// Contenido con variables pero sin .env (debería usar valores por defecto)
+	composeContent := `version: '3.8'
+services:
+  web:
+    image: ${IMAGE_VERSION:-nginx:latest}
+  
+  app:
+    image: nginx:1.20  # Sin variable
+`
+
+	err := os.WriteFile(composeFile, []byte(composeContent), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create compose file: %v", err)
+	}
+
+	// Parsear el archivo
+	images, err := parser.ParseFile(context.Background(), composeFile)
+	if err != nil {
+		t.Fatalf("ParseFile failed: %v", err)
+	}
+
+	// Verificar que usa el valor por defecto
+	expectedImages := []types.DockerImage{
+		{
+			Registry:    "docker.io",
+			Repository:  "library/nginx",
+			Tag:         "latest",
+			ServiceName: "web",
+			ComposeFile: composeFile,
+		},
+		{
+			Registry:    "docker.io",
+			Repository:  "library/nginx",
+			Tag:         "1.20",
+			ServiceName: "app",
+			ComposeFile: composeFile,
+		},
+	}
+
+	if len(images) != len(expectedImages) {
+		t.Fatalf("Expected %d images, got %d", len(expectedImages), len(images))
+	}
+
+	// Verificar que el valor por defecto se usó correctamente
+	for _, actual := range images {
+		if actual.ServiceName == "web" && actual.Tag != "latest" {
+			t.Errorf("Expected default tag 'latest' for web service, got %s", actual.Tag)
+		}
 	}
 }

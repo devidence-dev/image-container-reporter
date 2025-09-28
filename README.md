@@ -235,6 +235,49 @@ cache:
   ttl: "1h"  # Cache duration for registry responses
 ```
 
+### Environment Variables in Docker Compose
+
+ICR automatically loads environment variables from `.env` files located in the same directory as your `docker-compose.yml` files. This allows you to use variables in your compose files that will be resolved at scan time.
+
+#### Example with .env file:
+
+**docker-compose.yml:**
+```yaml
+version: '3.8'
+services:
+  adguardhome:
+    image: ${IMAGE_VERSION:-adguard/adguardhome:latest}
+    container_name: adguardhome
+    restart: unless-stopped
+  
+  nginx:
+    image: nginx:${NGINX_VERSION}
+  
+  postgres:
+    image: postgres:${DB_VERSION:-14}
+```
+
+**.env:**
+```bash
+IMAGE_VERSION=adguard/adguardhome:v0.107.66
+NGINX_VERSION=1.21
+DB_VERSION=15
+```
+
+When scanning, ICR will:
+1. Load variables from `.env` file
+2. Expand `${VARIABLE_NAME}` and `${VARIABLE_NAME:-default}` syntax
+3. Parse the resolved image names for version checking
+
+#### Variable Syntax Supported:
+- `${VAR_NAME}` - Required variable (fails if not defined)
+- `${VAR_NAME:-default}` - Variable with default value
+- Variables are loaded from `.env` files in the same directory as compose files
+- System environment variables take precedence over `.env` file variables
+
+## Example Docker Compose Files
+```
+
 ### Environment Variables
 
 You can override configuration using environment variables:
@@ -262,6 +305,39 @@ services:
     environment:
       POSTGRES_PASSWORD: mypassword
 ```
+
+### With Environment Variables (.env support)
+
+Create a `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+services:
+  web:
+    image: ${WEB_IMAGE:-nginx:1.21}
+    ports:
+      - "${WEB_PORT:-80}:80"
+  
+  database:
+    image: ${DB_IMAGE:-postgres:14}
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+  
+  redis:
+    image: redis:${REDIS_VERSION:-7}
+```
+
+Create a `.env` file in the same directory:
+
+```bash
+WEB_IMAGE=nginx:1.22
+WEB_PORT=8080
+DB_IMAGE=postgres:15
+DB_PASSWORD=mysecretpassword
+REDIS_VERSION=7.2
+```
+
+ICR will automatically load the `.env` file and resolve all variables before scanning for updates.
 
 ### With Custom Registry
 

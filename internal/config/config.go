@@ -80,7 +80,7 @@ func DefaultConfig() *types.Config {
 
 // loadFromFile carga la configuración desde un archivo YAML
 func loadFromFile(cfg *types.Config, filePath string) error {
-	data, err := os.ReadFile(filePath) //nolint:gosec
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/user/docker-image-reporter/pkg/errors"
@@ -26,8 +27,20 @@ func (p *Parser) ParseFile(ctx context.Context, filePath string) ([]types.Docker
 		return nil, errors.Wrapf("compose.ParseFile", err, "reading file %s", filePath)
 	}
 
+	// Load environment variables from .env file if it exists
+	envVars := make(map[string]string)
+	composeDir := filepath.Dir(filePath)
+	envFile := filepath.Join(composeDir, ".env")
+	if envData, err := os.ReadFile(envFile); err == nil { //nolint:gosec
+		// Parse .env file content
+		envVars = p.parseEnvFile(string(envData))
+	}
+
+	// Expand environment variables in the compose file content
+	expandedData := p.expandEnvVars(string(data), envVars)
+
 	var compose ComposeFile
-	if err := yaml.Unmarshal(data, &compose); err != nil {
+	if err := yaml.Unmarshal([]byte(expandedData), &compose); err != nil {
 		return nil, errors.Wrapf("compose.ParseFile", err, "parsing YAML file %s", filePath)
 	}
 
@@ -177,6 +190,70 @@ func (p *Parser) parseRegistryAndRepository(imageStr string) (string, string) {
 
 		return registry, repository
 	}
+}
+
+// parseEnvFile parsea el contenido de un archivo .env y retorna un mapa de variables
+func (p *Parser) parseEnvFile(content string) map[string]string {
+	envVars := make(map[string]string)
+
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Parsear líneas como KEY=VALUE
+		if idx := strings.Index(line, "="); idx > 0 {
+			key := strings.TrimSpace(line[:idx])
+			value := strings.TrimSpace(line[idx+1:])
+			// Remover comillas si existen
+			if len(value) >= 2 && ((value[0] == '"' && value[len(value)-1] == '"') || (value[0] == '\'' && value[len(value)-1] == '\'')) {
+				value = value[1 : len(value)-1]
+			}
+			envVars[key] = value
+		}
+	}
+
+	return envVars
+}
+
+// expandEnvVars expande variables de entorno en el contenido usando un mapa personalizado
+func (p *Parser) expandEnvVars(content string, envVars map[string]string) string {
+	// Patrón regex para encontrar variables como ${VAR} o ${VAR:-default}
+	re := regexp.MustCompile(`\$\{([^}]+)\}`)
+
+	return re.ReplaceAllStringFunc(content, func(match string) string {
+		// Extraer el contenido dentro de ${}
+		varContent := match[2 : len(match)-1] // Remover ${ y }
+
+		// Verificar si tiene valor por defecto (VAR:-default)
+		var parts []string
+		if strings.Contains(varContent, ":-") {
+			parts = strings.SplitN(varContent, ":-", 2)
+		} else {
+			parts = []string{varContent}
+		}
+
+		varName := parts[0]
+		defaultValue := ""
+		if len(parts) > 1 {
+			defaultValue = parts[1]
+		}
+
+		// Buscar en el mapa de variables del .env
+		if value, exists := envVars[varName]; exists {
+			return value
+		}
+
+		// Si no existe en .env, usar valor por defecto o dejar la variable sin expandir
+		if defaultValue != "" {
+			return defaultValue
+		}
+
+		// Si no hay valor por defecto, devolver la variable original
+		return match
+	})
 }
 
 // ComposeFile representa la estructura de un archivo docker-compose
