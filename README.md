@@ -25,17 +25,17 @@ A command-line tool written in Go that scans docker-compose files to detect avai
 
 ```bash
 # For ARM64 platforms (Raspberry Pi, Apple Silicon, ARM servers)
-curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/docker-image-reporter-linux-arm64 -o docker-image-reporter
-chmod +x docker-image-reporter
-sudo mv docker-image-reporter /usr/local/bin/
+curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/icr-linux-arm64 -o icr
+chmod +x icr
+sudo mv icr /usr/local/bin/
 
 # For AMD64 platforms
-curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/docker-image-reporter-linux-amd64 -o docker-image-reporter
-chmod +x docker-image-reporter
-sudo mv docker-image-reporter /usr/local/bin/
+curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/icr-linux-amd64 -o icr
+chmod +x icr
+sudo mv icr /usr/local/bin/
 
 # Verify installation
-docker-image-reporter --version
+icr --version
 ```
 
 #### From Source
@@ -43,8 +43,8 @@ docker-image-reporter --version
 ```bash
 git clone https://github.com/devidence-dev/image-container-reporter.git
 cd image-container-reporter
-go build -o docker-image-reporter ./main.go
-sudo mv docker-image-reporter /usr/local/bin/
+go build -o icr ./main.go
+sudo mv icr /usr/local/bin/
 ```
 
 ### 2. Telegram Setup
@@ -66,12 +66,12 @@ sudo mv docker-image-reporter /usr/local/bin/
 
 ```bash
 # Test your bot configuration
-docker-image-reporter test --telegram-bot-token YOUR_BOT_TOKEN --telegram-chat-id YOUR_CHAT_ID
+icr test --telegram-bot-token YOUR_BOT_TOKEN --telegram-chat-id YOUR_CHAT_ID
 ```
 
 ### 3. Configuration
 
-Create `~/.docker-image-reporter/config.yml`:
+Create `~/.icr/config.yml`:
 
 ```yaml
 telegram:
@@ -98,16 +98,16 @@ scan:
 
 ```bash
 # Scan current directory
-docker-image-reporter scan
+icr scan
 
 # Scan with Telegram notification
-docker-image-reporter scan --notify
+icr scan --notify
 
 # Scan specific path
-docker-image-reporter scan /path/to/your/docker-compose.yml
+icr scan /path/to/your/docker-compose.yml
 
 # Generate HTML report
-docker-image-reporter scan --format html --output report.html
+icr scan --format html --output report.html
 ```
 
 ## CLI Reference
@@ -115,7 +115,7 @@ docker-image-reporter scan --format html --output report.html
 ### Global Flags
 
 ```bash
--c, --config string   Path to configuration file (default "~/.docker-image-reporter/config.yml")
+-c, --config string   Path to configuration file (default "~/.icr/config.yml")
 -h, --help           Show help
 -v, --verbose        Enable verbose output
     --version        Show version
@@ -128,7 +128,7 @@ docker-image-reporter scan --format html --output report.html
 Scan docker-compose files for image updates.
 
 ```bash
-docker-image-reporter scan [flags] [path]
+icr scan [flags] [path]
 
 Flags:
   -f, --format string     Output format: json, html (default "json")
@@ -143,7 +143,7 @@ Flags:
 The `--docker-daemon` flag enables scanning of running containers directly via Docker daemon instead of parsing compose files.
 
 ```bash
-docker-image-reporter scan --docker-daemon [flags]
+icr scan --docker-daemon [flags]
 
 Additional Flags for Docker Daemon Mode:
       --docker-daemon      Scan running containers via Docker daemon
@@ -153,26 +153,26 @@ Additional Flags for Docker Daemon Mode:
 **Examples:**
 ```bash
 # Basic scan of compose files
-docker-image-reporter scan
+icr scan
 
 # Scan running containers via Docker daemon
-docker-image-reporter scan --docker-daemon
+icr scan --docker-daemon
 
 # Scan running containers and fail if updates found (CI mode)
-docker-image-reporter scan --docker-daemon --fail-on-updates
+icr scan --docker-daemon --fail-on-updates
 
 # Scan specific directory with HTML report
-docker-image-reporter scan --format html --output scan-report.html /opt/docker
+icr scan --format html --output scan-report.html /opt/docker
 
 # Scan and notify via Telegram
-docker-image-reporter scan --notify
+icr scan --notify
 
 # Custom file patterns (compose mode only)
-docker-image-reporter scan --patterns "docker-compose.yml,compose.yml" /srv
+icr scan --patterns "docker-compose.yml,compose.yml" /srv
 
 # Compare running containers with compose files
-docker-image-reporter scan --docker-daemon --output running.json
-docker-image-reporter scan /opt/docker --output compose.json
+icr scan --docker-daemon --output running.json
+icr scan /opt/docker --output compose.json
 ```
 
 #### `config`
@@ -180,7 +180,7 @@ docker-image-reporter scan /opt/docker --output compose.json
 Manage configuration settings.
 
 ```bash
-docker-image-reporter config [command]
+icr config [command]
 
 Available Commands:
   get         Get configuration value
@@ -191,16 +191,16 @@ Available Commands:
 **Examples:**
 ```bash
 # Show current configuration
-docker-image-reporter config show
+icr config show
 
 # Set Telegram bot token
-docker-image-reporter config set telegram.bot_token "your_bot_token"
+icr config set telegram.bot_token "your_bot_token"
 
 # Get specific value
-docker-image-reporter config get telegram.chat_id
+icr config get telegram.chat_id
 
 # Set GitHub token for GHCR access
-docker-image-reporter config set registries.ghcr.token "ghp_..."
+icr config set registries.ghcr.token "ghp_..."
 ```
 
 #### `test`
@@ -208,7 +208,7 @@ docker-image-reporter config set registries.ghcr.token "ghp_..."
 Test connectivity to configured services.
 
 ```bash
-docker-image-reporter test [flags]
+icr test [flags]
 
 Flags:
       --telegram-bot-token string   Telegram bot token for testing
@@ -218,10 +218,10 @@ Flags:
 **Examples:**
 ```bash
 # Test all configured services
-docker-image-reporter test
+icr test
 
 # Test specific Telegram configuration
-docker-image-reporter test --telegram-bot-token "token" --telegram-chat-id "123"
+icr test --telegram-bot-token "token" --telegram-chat-id "123"
 ```
 
 ## Scanning Modes
@@ -247,10 +247,10 @@ Scans `docker-compose.yml` files in the filesystem to extract image information.
 
 ```bash
 # Scan compose files in current directory
-docker-image-reporter scan
+icr scan
 
 # Scan multiple project directories
-docker-image-reporter scan /opt/projects --recursive
+icr scan /opt/projects --recursive
 ```
 
 ### Docker Daemon Mode
@@ -272,10 +272,10 @@ Connects to Docker daemon to scan currently running containers.
 
 ```bash
 # Scan running containers
-docker-image-reporter scan --docker-daemon
+icr scan --docker-daemon
 
 # Fail CI job if running containers have updates
-docker-image-reporter scan --docker-daemon --fail-on-updates
+icr scan --docker-daemon --fail-on-updates
 ```
 
 ### Comparison Table
@@ -372,9 +372,9 @@ When scanning, ICR will:
 You can override configuration using environment variables:
 
 ```bash
-export DOCKER_IMAGE_REPORTER_TELEGRAM_BOT_TOKEN="your_token"
-export DOCKER_IMAGE_REPORTER_TELEGRAM_CHAT_ID="your_chat_id"
-export DOCKER_IMAGE_REPORTER_REGISTRIES_GHCR_TOKEN="your_github_token"
+export TELEGRAM_BOT_TOKEN="your_bot_token"
+export TELEGRAM_CHAT_ID="your_chat_id"
+export GITHUB_TOKEN="your_github_token"
 ```
 
 ## Example Docker Compose Files
@@ -450,7 +450,7 @@ services:
 
 **Solution:** Configure your Telegram bot token:
 ```bash
-docker-image-reporter config set telegram.bot_token "your_token_here"
+icr config set telegram.bot_token "your_token_here"
 ```
 
 #### "Failed to send Telegram message: Bad Request: chat not found"
@@ -465,14 +465,14 @@ docker-image-reporter config set telegram.bot_token "your_token_here"
 **Solution:** For GitHub Container Registry:
 ```bash
 # Create a Personal Access Token with package read permissions
-docker-image-reporter config set registries.ghcr.token "ghp_..."
+icr config set registries.ghcr.token "ghp_..."
 ```
 
 #### "No docker-compose files found"
 
 **Solution:** Check your current directory or specify a path:
 ```bash
-docker-image-reporter scan /path/to/docker/files
+icr scan /path/to/docker/files
 ```
 
 #### ARM64 Binary Won't Run
@@ -480,7 +480,7 @@ docker-image-reporter scan /path/to/docker/files
 **Solution:** Ensure you're using the correct architecture:
 ```bash
 uname -m  # Should show 'aarch64' for ARM64
-file docker-image-reporter  # Should show 'ARM aarch64'
+file icr  # Should show 'ARM aarch64'
 ```
 
 ### Debug Mode
@@ -488,7 +488,7 @@ file docker-image-reporter  # Should show 'ARM aarch64'
 Enable verbose output for troubleshooting:
 
 ```bash
-docker-image-reporter --verbose scan
+icr --verbose scan
 ```
 
 ### Logs and Reports
@@ -530,13 +530,13 @@ make lint  # Run linters
 
 ```bash
 # Build for current platform
-go build -o docker-image-reporter ./main.go
+go build -o icr ./main.go
 
 # Cross-compile for multiple platforms
 make build-all
 
 # Create optimized release build
-CGO_ENABLED=0 go build -ldflags="-w -s" -o docker-image-reporter ./main.go
+CGO_ENABLED=0 go build -ldflags="-w -s" -o icr ./main.go
 ```
 
 ### Testing
@@ -604,7 +604,7 @@ jobs:
 
       - name: Download ICR
         run: |
-          curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/docker-image-reporter-linux-amd64 -o icr
+          curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/icr-linux-amd64 -o icr
           chmod +x icr
 
       - name: Scan for updates
@@ -640,13 +640,13 @@ jobs:
     steps:
       - name: Download ICR
         run: |
-          curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/docker-image-reporter-linux-amd64 -o /tmp/icr
+          curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/icr-linux-amd64 -o /tmp/icr
           chmod +x /tmp/icr
 
       - name: Configure ICR
         run: |
           # Set up Telegram notifications
-          /tmp/icr config set telegram.bot_token "${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          /tmp/icr config set telegram.bot_token "${{ secrets.GHCR_TOKEN }}"
           /tmp/icr config set telegram.chat_id "${{ secrets.TELEGRAM_CHAT_ID }}"
           /tmp/icr config set telegram.enabled true
 
@@ -686,7 +686,7 @@ jobs:
 
       - name: Setup ICR
         run: |
-          curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/docker-image-reporter-linux-amd64 -o icr
+          curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/icr-linux-amd64 -o icr
           chmod +x icr
 
       - name: Scan environment
@@ -716,7 +716,7 @@ When using ICR in GitHub Actions, configure secrets for sensitive data:
 
 ```bash
 # GitHub Repository Settings > Secrets and variables > Actions
-TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+GHCR_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
 TELEGRAM_CHAT_ID=123456789
 GHCR_TOKEN=ghp_your_github_personal_access_token
 ```

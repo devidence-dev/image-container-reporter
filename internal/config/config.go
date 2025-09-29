@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	DefaultConfigDir  = ".docker-image-reporter"
-	DefaultConfigFile = "config.yaml"
+	DefaultConfigDir  = ".icr"
+	DefaultConfigFile = "config.yml"
 )
 
 // Load carga la configuración desde archivo y variables de entorno

@@ -7,9 +7,9 @@ import (
 // NewRootCmd crea el comando raíz de la aplicación
 func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "docker-image-reporter",
-		Short: "Docker Image Reporter - Scan and report Docker image updates",
-		Long: `Docker Image Reporter is a tool to scan docker-compose files and report
+		Use:   "icr",
+		Short: "Image Container Reporter - Scan and report Docker image updates",
+		Long: `Image Container Reporter (ICR) is a tool to scan docker-compose files and report
 available updates for Docker images from various registries.
 
 It supports Docker Hub, GitHub Container Registry, and can send notifications

@@ -1,6 +1,6 @@
 .PHONY: build test clean run lint deps
 
-BINARY_NAME=docker-image-reporter
+BINARY_NAME=icr
 BUILD_DIR=bin
 
 build:

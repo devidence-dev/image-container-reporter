@@ -55,11 +55,7 @@ jobs:
       run: |
         # Build matrix for target platforms (prioritizing ARM64)
         platforms=(
-          "linux/amd64"
           "linux/arm64"
-          "darwin/amd64"
-          "darwin/arm64"
-          "windows/amd64"
         )
 
         for platform in "${platforms[@]}"; do
@@ -96,18 +92,6 @@ jobs:
 
         Download the appropriate binary for your platform from the assets below.
 
-        ### Linux AMD64
-        ```bash
-        # Download and verify
-        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-amd64
-        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-amd64.sha256
-        sha256sum -c icr-linux-amd64.sha256
-
-        # Make executable and move to PATH
-        chmod +x icr-linux-amd64
-        sudo mv icr-linux-amd64 /usr/local/bin/icr
-        ```
-
         ### ARM64 (Raspberry Pi 5, Apple Silicon, etc.)
         ```bash
         # For ARM64 platforms (Raspberry Pi 5, Apple M1/M2/M3, etc.)
@@ -119,36 +103,14 @@ jobs:
         sudo mv icr-linux-arm64 /usr/local/bin/icr
         ```
 
-        ### macOS (Intel)
+        ### Other Platforms
+
+        This release only includes binaries for Linux ARM64. For other platforms (AMD64, macOS, Windows), you can build from source:
+
         ```bash
-        # For Intel Macs
-        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-darwin-amd64
-        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-darwin-amd64.sha256
-        shasum -a 256 -c icr-darwin-amd64.sha256
-
-        chmod +x icr-darwin-amd64
-        sudo mv icr-darwin-amd64 /usr/local/bin/icr
-        ```
-
-        ### macOS (Apple Silicon)
-        ```bash
-        # For Apple Silicon Macs (M1/M2/M3)
-        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-darwin-arm64
-        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-darwin-arm64.sha256
-        shasum -a 256 -c icr-darwin-arm64.sha256
-
-        chmod +x icr-darwin-arm64
-        sudo mv icr-darwin-arm64 /usr/local/bin/icr
-        ```
-
-        ### Windows
-        ```powershell
-        # Download the exe file
-        Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-windows-amd64.exe" -OutFile "icr.exe"
-
-        # Verify checksum (optional)
-        Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-windows-amd64.exe.sha256" -OutFile "checksum.txt"
-        # Manually verify the checksum matches
+        git clone https://github.com/${{ github.repository }}.git
+        cd image-container-reporter
+        go build -o icr ./main.go
         ```
 
         ## Usage
