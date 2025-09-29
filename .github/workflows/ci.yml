@@ -59,11 +59,7 @@ jobs:
       run: go vet ./...
 
     - name: Install golangci-lint
-      run: |
-        curl -L https://github.com/golangci/golangci-lint/releases/download/v2.5.0/golangci-lint-2.5.0-linux-arm64.tar.gz -o golangci-lint.tar.gz
-        tar -xzf golangci-lint.tar.gz
-        sudo mv golangci-lint-2.5.0-linux-arm64/golangci-lint /usr/local/bin/
-        rm -rf golangci-lint*
+      run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
     - name: Run golangci-lint
       run: golangci-lint run
