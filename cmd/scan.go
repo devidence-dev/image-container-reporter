@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,11 +12,13 @@ import (
 
 	"github.com/user/docker-image-reporter/internal/compose"
 	"github.com/user/docker-image-reporter/internal/config"
+	"github.com/user/docker-image-reporter/internal/docker"
 	"github.com/user/docker-image-reporter/internal/notifier"
 	"github.com/user/docker-image-reporter/internal/registry"
 	"github.com/user/docker-image-reporter/internal/report"
 	"github.com/user/docker-image-reporter/internal/scanner"
 	"github.com/user/docker-image-reporter/pkg/types"
+	"github.com/user/docker-image-reporter/pkg/utils"
 )
 
 // Output format constants
@@ -28,9 +31,9 @@ const (
 func newScanCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "scan [path]",
-		Short: "Scan docker-compose files for image updates",
+		Short: "Scan docker-compose files or running containers for image updates",
 		Long: `Scan docker-compose files in the specified path (or current directory)
-for Docker image updates. Reports available updates from configured registries.`,
+or running Docker containers for image updates. Reports available updates from configured registries.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: runScan,
 	}
@@ -38,23 +41,14 @@ for Docker image updates. Reports available updates from configured registries.`
 	cmd.Flags().BoolP("notify", "n", false, "Send notifications for found updates")
 	cmd.Flags().StringP("output", "o", "console", "Output format (console, json, html)")
 	cmd.Flags().String("output-file", "", "Write output to file instead of stdout")
+	cmd.Flags().Bool("docker-daemon", false, "Scan running containers via Docker daemon instead of compose files")
+	cmd.Flags().Bool("fail-on-updates", false, "Exit with non-zero code if updates are found")
 
 	return cmd
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
 	logger := slog.Default()
-
-	// Determinar el path a escanear
-	scanPath := "."
-	if len(args) > 0 {
-		scanPath = args[0]
-	}
-
-	// Verificar que el path existe
-	if _, err := os.Stat(scanPath); os.IsNotExist(err) {
-		return fmt.Errorf("path does not exist: %s", scanPath)
-	}
 
 	// Obtener configuración
 	configPath, _ := cmd.Flags().GetString("config")
@@ -67,29 +61,64 @@ func runScan(cmd *cobra.Command, args []string) error {
 	notify, _ := cmd.Flags().GetBool("notify")
 	outputFormat, _ := cmd.Flags().GetString("output")
 	outputFile, _ := cmd.Flags().GetString("output-file")
+	useDockerDaemon, _ := cmd.Flags().GetBool("docker-daemon")
+	failOnUpdates, _ := cmd.Flags().GetBool("fail-on-updates")
 
-	logger.Info("Starting scan",
-		"path", scanPath,
-		"notify", notify,
-		"output", outputFormat)
-
-	// Crear servicios
-	scanSvc := createScanService(cfg)
-
-	reportSvc := createReportService()
-
-	notifySvc := createNotificationService(cfg)
-
-	// Ejecutar el escaneo
 	ctx := cmd.Context()
-	scanConfig := scanner.DefaultConfig()
-	scanResult, err := scanSvc.ScanDirectory(ctx, scanPath, scanConfig)
-	if err != nil {
-		return fmt.Errorf("scan failed: %w", err)
+
+	var result types.ScanResult
+
+	if useDockerDaemon {
+		logger.Info("Starting Docker daemon scan")
+
+		// Crear cliente Docker
+		dockerClient, err := docker.NewClient(logger)
+		if err != nil {
+			return fmt.Errorf("failed to create Docker client: %w", err)
+		}
+		defer dockerClient.Close()
+
+		// Probar conexión
+		if err := dockerClient.Ping(ctx); err != nil {
+			return fmt.Errorf("failed to connect to Docker daemon: %w", err)
+		}
+
+		// Escanear contenedores en ejecución
+		result, err = scanDockerDaemon(ctx, dockerClient, cfg, logger)
+		if err != nil {
+			return fmt.Errorf("Docker daemon scan failed: %w", err)
+		}
+	} else {
+		logger.Info("Starting compose files scan")
+
+		// Determinar el path a escanear
+		scanPath := "."
+		if len(args) > 0 {
+			scanPath = args[0]
+		}
+
+		// Verificar que el path existe
+		if _, err := os.Stat(scanPath); os.IsNotExist(err) {
+			return fmt.Errorf("path does not exist: %s", scanPath)
+		}
+
+		logger.Info("Starting scan", "path", scanPath)
+
+		// Crear servicios
+		scanSvc := createScanService(cfg)
+
+		// Ejecutar el escaneo
+		scanConfig := scanner.DefaultConfig()
+		scanResultPtr, err := scanSvc.ScanDirectory(ctx, scanPath, scanConfig)
+		if err != nil {
+			return fmt.Errorf("scan failed: %w", err)
+		}
+		result = *scanResultPtr
 	}
 
-	// Convertir a valor para las funciones que esperan ScanResult
-	result := *scanResult
+	// Crear servicios comunes
+	reportSvc := createReportService()
+	notifySvc := createNotificationService(cfg)
 
 	// Mostrar resultados según el formato solicitado
 	if err := outputResult(cmd, result, outputFormat, outputFile, reportSvc); err != nil {
@@ -112,6 +141,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 		"files_scanned", len(result.FilesScanned),
 		"services_found", result.TotalServicesFound,
 		"updates_available", len(result.UpdatesAvailable))
+
+	// Fallar si hay actualizaciones y se solicitó
+	if failOnUpdates && len(result.UpdatesAvailable) > 0 {
+		return fmt.Errorf("found %d image updates", len(result.UpdatesAvailable))
+	}
 
 	return nil
 }
@@ -236,6 +270,147 @@ func getFormatter(format string, reportSvc *reportService) types.ReportFormatter
 		return reportSvc.htmlFormatter
 	default:
 		return reportSvc.jsonFormatter
+	}
+}
+
+// scanDockerDaemon executes a scan using Docker daemon to inspect running containers
+func scanDockerDaemon(ctx context.Context, dockerClient *docker.Client, cfg *types.Config, logger *slog.Logger) (types.ScanResult, error) {
+	// Obtener imágenes de contenedores en ejecución
+	images, err := dockerClient.ScanRunningContainers(ctx)
+	if err != nil {
+		return types.ScanResult{}, fmt.Errorf("scanning running containers: %w", err)
+	}
+
+	if len(images) == 0 {
+		logger.Warn("No running containers found")
+		return types.ScanResult{
+			ProjectName:      "docker-daemon",
+			ScanTimestamp:    time.Now(),
+			UpdatesAvailable: []types.ImageUpdate{},
+			UpToDateServices: []string{},
+			Errors:           []string{"No running containers found"},
+		}, nil
+	}
+
+	// Crear servicios para verificar actualizaciones
+	var registryClients []types.RegistryClient
+
+	// Docker Hub
+	if cfg.Registry.DockerHub.Enabled {
+		dockerHubClient := registry.NewDockerHubClient(time.Duration(cfg.Registry.DockerHub.Timeout) * time.Second)
+		registryClients = append(registryClients, dockerHubClient)
+	}
+
+	// GitHub Container Registry
+	if cfg.Registry.GHCR.Enabled {
+		ghcrClient := registry.NewGHCRClient(cfg.Registry.GHCR.Token, time.Duration(cfg.Registry.GHCR.Timeout)*time.Second)
+		registryClients = append(registryClients, ghcrClient)
+	}
+
+	// Verificar actualizaciones para cada imagen
+	var updates []types.ImageUpdate
+	var upToDate []string
+	var scanErrors []string
+
+	for _, image := range images {
+		logger.Debug("Checking image for updates", "service", image.ServiceName, "image", image.String())
+
+		// Buscar cliente de registro apropiado
+		var client types.RegistryClient
+		for _, reg := range registryClients {
+			if canHandleRegistryForImage(reg, image.Registry) {
+				client = reg
+				break
+			}
+		}
+
+		if client == nil {
+			errMsg := fmt.Sprintf("no registry client available for %s (registry: %s)", image.String(), image.Registry)
+			scanErrors = append(scanErrors, errMsg)
+			logger.Warn("No registry client available", "image", image.String(), "registry", image.Registry)
+			continue
+		}
+
+		// Obtener tags más recientes del registro
+		tags, err := client.GetLatestTags(ctx, image)
+		if err != nil {
+			errMsg := fmt.Sprintf("getting tags for %s: %v", image.String(), err)
+			scanErrors = append(scanErrors, errMsg)
+			logger.Error("Failed to get tags", "image", image.String(), "error", err)
+			continue
+		}
+
+		if len(tags) == 0 {
+			errMsg := fmt.Sprintf("no tags found for %s", image.String())
+			scanErrors = append(scanErrors, errMsg)
+			logger.Warn("No tags found", "image", image.String())
+			continue
+		}
+
+		// Filtrar y ordenar tags para encontrar la versión estable más reciente
+		stableTags := utils.FilterPreReleases(tags)
+		if len(stableTags) == 0 {
+			logger.Debug("No stable tags found, using all tags", "image", image.String())
+			stableTags = tags
+		}
+
+		sortedTags := utils.SortVersions(stableTags)
+		latestTag := sortedTags[0]
+
+		// Comparar versiones
+		updateType := utils.CompareVersions(image.Tag, latestTag)
+
+		if updateType == types.UpdateTypeNone {
+			upToDate = append(upToDate, image.ServiceName)
+			logger.Debug("Image is up to date", "service", image.ServiceName, "image", image.String())
+			continue
+		}
+
+		// Crear registro de actualización
+		update := types.ImageUpdate{
+			ServiceName:  image.ServiceName,
+			CurrentImage: image,
+			LatestImage: types.DockerImage{
+				Registry:   image.Registry,
+				Repository: image.Repository,
+				Tag:        latestTag,
+			},
+			UpdateType: updateType,
+		}
+
+		updates = append(updates, update)
+		logger.Info("Update available",
+			"service", image.ServiceName,
+			"current", image.Tag,
+			"latest", latestTag,
+			"type", updateType)
+	}
+
+	result := types.ScanResult{
+		ProjectName:        "docker-daemon",
+		ScanTimestamp:      time.Now(),
+		UpdatesAvailable:   updates,
+		UpToDateServices:   upToDate,
+		Errors:             scanErrors,
+		TotalServicesFound: len(images),
+		FilesScanned:       []string{}, // No files scanned in daemon mode
+	}
+
+	return result, nil
+}
+
+// canHandleRegistryForImage checks if a registry client can handle the given registry
+func canHandleRegistryForImage(client types.RegistryClient, registry string) bool {
+	clientName := strings.ToLower(client.Name())
+	registryName := strings.ToLower(registry)
+
+	switch clientName {
+	case "docker.io", "dockerhub":
+		return registryName == "docker.io" || registryName == ""
+	case "ghcr.io", "ghcr":
+		return registryName == "ghcr.io"
+	default:
+		return clientName == registryName
 	}
 }
 

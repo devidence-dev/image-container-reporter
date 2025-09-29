@@ -4,12 +4,14 @@ import "fmt"
 
 // DockerImage representa una imagen Docker con su registro, repositorio y tag
 type DockerImage struct {
-	Registry    string `json:"registry"`
-	Repository  string `json:"repository"`
-	Tag         string `json:"tag"`
-	Digest      string `json:"digest,omitempty"`
-	ServiceName string `json:"service_name,omitempty"`
-	ComposeFile string `json:"compose_file,omitempty"`
+	Registry      string `json:"registry"`
+	Repository    string `json:"repository"`
+	Tag           string `json:"tag"`
+	Digest        string `json:"digest,omitempty"`
+	ServiceName   string `json:"service_name,omitempty"`
+	ComposeFile   string `json:"compose_file,omitempty"`
+	ContainerID   string `json:"container_id,omitempty"`
+	ContainerName string `json:"container_name,omitempty"`
 }
 
 // String devuelve la representación completa de la imagen Docker

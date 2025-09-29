@@ -4,7 +4,7 @@ A command-line tool written in Go that scans docker-compose files to detect avai
 
 [![CI](https://github.com/devidence-dev/image-container-reporter/workflows/CI/badge.svg)](https://github.com/devidence-dev/image-container-reporter/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/devidence-dev/image-container-reporter)](https://goreportcard.com/report/github.com/devidence-dev/image-container-reporter)
-[![Go Version](https://img.shields.io/badge/go-1.24+-blue.svg)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/go-1.25+-blue.svg)](https://golang.org)
 
 ## Features
 
@@ -138,10 +138,28 @@ Flags:
   -r, --recursive        Scan directories recursively (default true)
 ```
 
+**Docker Daemon Mode:**
+
+The `--docker-daemon` flag enables scanning of running containers directly via Docker daemon instead of parsing compose files.
+
+```bash
+docker-image-reporter scan --docker-daemon [flags]
+
+Additional Flags for Docker Daemon Mode:
+      --docker-daemon      Scan running containers via Docker daemon
+      --fail-on-updates    Exit with non-zero code if updates are found (useful for CI)
+```
+
 **Examples:**
 ```bash
-# Basic scan
+# Basic scan of compose files
 docker-image-reporter scan
+
+# Scan running containers via Docker daemon
+docker-image-reporter scan --docker-daemon
+
+# Scan running containers and fail if updates found (CI mode)
+docker-image-reporter scan --docker-daemon --fail-on-updates
 
 # Scan specific directory with HTML report
 docker-image-reporter scan --format html --output scan-report.html /opt/docker
@@ -149,8 +167,12 @@ docker-image-reporter scan --format html --output scan-report.html /opt/docker
 # Scan and notify via Telegram
 docker-image-reporter scan --notify
 
-# Custom file patterns
+# Custom file patterns (compose mode only)
 docker-image-reporter scan --patterns "docker-compose.yml,compose.yml" /srv
+
+# Compare running containers with compose files
+docker-image-reporter scan --docker-daemon --output running.json
+docker-image-reporter scan /opt/docker --output compose.json
 ```
 
 #### `config`
@@ -201,6 +223,73 @@ docker-image-reporter test
 # Test specific Telegram configuration
 docker-image-reporter test --telegram-bot-token "token" --telegram-chat-id "123"
 ```
+
+## Scanning Modes
+
+ICR supports two scanning modes: **Compose Files** (default) and **Docker Daemon**.
+
+### Compose Files Mode (Default)
+
+Scans `docker-compose.yml` files in the filesystem to extract image information.
+
+**Advantages:**
+- ✅ Works without running containers
+- ✅ Scans projects that aren't currently deployed
+- ✅ Supports environment variable expansion from `.env` files
+- ✅ Ideal for CI/CD pipelines and development
+- ✅ Can scan multiple projects in subdirectories
+
+**Use Cases:**
+- Pre-deployment validation in CI/CD
+- Development environment checks
+- Scanning projects before `docker-compose up`
+- Bulk scanning of multiple projects
+
+```bash
+# Scan compose files in current directory
+docker-image-reporter scan
+
+# Scan multiple project directories
+docker-image-reporter scan /opt/projects --recursive
+```
+
+### Docker Daemon Mode
+
+Connects to Docker daemon to scan currently running containers.
+
+**Advantages:**
+- ✅ Shows exactly what's running in production
+- ✅ No filesystem access required
+- ✅ Detects containers started manually or via other tools
+- ✅ Real-time production monitoring
+- ✅ Works with any container management approach
+
+**Use Cases:**
+- Production monitoring and alerting
+- Security audits of running systems
+- Drift detection (what's running vs. what should be running)
+- Server monitoring where compose files aren't available
+
+```bash
+# Scan running containers
+docker-image-reporter scan --docker-daemon
+
+# Fail CI job if running containers have updates
+docker-image-reporter scan --docker-daemon --fail-on-updates
+```
+
+### Comparison Table
+
+| Feature | Compose Files | Docker Daemon |
+|---------|---------------|---------------|
+| **Requires running containers** | ❌ No | ✅ Yes |
+| **Filesystem access needed** | ✅ Yes | ❌ No |
+| **Environment variables** | ✅ From `.env` | ❌ Not available |
+| **Service names** | ✅ From compose | ⚠️ From labels/container names |
+| **Stopped services** | ✅ Detected | ❌ Not detected |
+| **Production monitoring** | ⚠️ Limited | ✅ Excellent |
+| **CI/CD integration** | ✅ Excellent | ⚠️ Needs running containers |
+| **Docker permissions** | ❌ Not required | ✅ Required |
 
 ## Configuration Reference
 
@@ -412,7 +501,7 @@ docker-image-reporter --verbose scan
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.25+
 - Git
 - Make (optional)
 
@@ -490,6 +579,161 @@ staticcheck ./...
 6. Commit your changes: `git commit -am 'Add some feature'`
 7. Push to the branch: `git push origin feature/your-feature`
 8. Submit a pull request
+
+## GitHub Actions Integration
+
+ICR is designed to work seamlessly in CI/CD pipelines. Here are example workflows for different use cases:
+
+### Pre-Deployment Validation
+
+Check for image updates before deploying to production:
+
+```yaml
+name: Check Image Updates
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download ICR
+        run: |
+          curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/docker-image-reporter-linux-amd64 -o icr
+          chmod +x icr
+
+      - name: Scan for updates
+        run: |
+          # Scan all docker-compose files recursively
+          ./icr scan --output json --output-file updates.json
+          
+          # If you want the job to fail when updates are found
+          ./icr scan --fail-on-updates
+
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-scan-results
+          path: updates.json
+```
+
+### Production Monitoring
+
+Monitor running containers on your production server:
+
+```yaml
+name: Production Image Monitor
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Run daily at 6 AM
+  workflow_dispatch:
+
+jobs:
+  monitor-production:
+    runs-on: self-hosted  # Use your production server as runner
+    steps:
+      - name: Download ICR
+        run: |
+          curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/docker-image-reporter-linux-amd64 -o /tmp/icr
+          chmod +x /tmp/icr
+
+      - name: Configure ICR
+        run: |
+          # Set up Telegram notifications
+          /tmp/icr config set telegram.bot_token "${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          /tmp/icr config set telegram.chat_id "${{ secrets.TELEGRAM_CHAT_ID }}"
+          /tmp/icr config set telegram.enabled true
+
+      - name: Scan running containers
+        run: |
+          # Scan running containers and send notifications if updates found
+          /tmp/icr scan --docker-daemon --notify --output json --output-file production-scan.json
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-scan-results
+          path: production-scan.json
+```
+
+### Multi-Environment Scan
+
+Scan multiple project directories and environments:
+
+```yaml
+name: Multi-Environment Scan
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  scan-environments:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [development, staging, production]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup ICR
+        run: |
+          curl -L https://github.com/devidence-dev/image-container-reporter/releases/latest/download/docker-image-reporter-linux-amd64 -o icr
+          chmod +x icr
+
+      - name: Scan environment
+        run: |
+          ./icr scan ./environments/${{ matrix.environment }} \
+            --output json \
+            --output-file ${{ matrix.environment }}-updates.json
+
+      - name: Create environment report
+        run: |
+          ./icr scan ./environments/${{ matrix.environment }} \
+            --format html \
+            --output-file ${{ matrix.environment }}-report.html
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.environment }}-scan-results
+          path: |
+            ${{ matrix.environment }}-updates.json
+            ${{ matrix.environment }}-report.html
+```
+
+### Security and Secrets
+
+When using ICR in GitHub Actions, configure secrets for sensitive data:
+
+```bash
+# GitHub Repository Settings > Secrets and variables > Actions
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+TELEGRAM_CHAT_ID=123456789
+GHCR_TOKEN=ghp_your_github_personal_access_token
+```
+
+### Self-Hosted Runners
+
+For Docker daemon mode, use self-hosted runners on your actual servers:
+
+1. **Install GitHub Actions runner** on your server
+2. **Configure Docker permissions** for the runner user:
+   ```bash
+   sudo usermod -aG docker actions-runner
+   ```
+3. **Use `runs-on: self-hosted`** in your workflow
+4. **Access Docker daemon** directly from the runner
+
+This allows ICR to scan your actual production containers and send real-time alerts.
 
 ## Architecture
 
