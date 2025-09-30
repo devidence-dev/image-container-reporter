@@ -195,20 +195,20 @@ func Save(cfg *types.Config, configPath string) error {
 
 // defaultTelegramTemplate devuelve el template por defecto para mensajes de Telegram
 func defaultTelegramTemplate() string {
-	return `🐳 *Docker Image Updates Available*
+	return `🐳 <b>Docker Image Updates Available</b>
 
-📊 *Summary:* {{.Summary}}
-📅 *Scanned:* {{.ScanTimestamp.Format "2006-01-02 15:04:05"}}
+📊 <b>Summary:</b> {{.Summary}}
+📅 <b>Scanned:</b> {{.ScanTimestamp.Format "2006-01-02 15:04:05"}}
 
 {{range .UpdatesAvailable}}
-🔄 *{{.ServiceName}}*
-   Current: ` + "`{{.CurrentImage}}`" + `
-   Latest: ` + "`{{.LatestImage}}`" + `
+🔄 <b>{{.ServiceName}}</b>
+   Current: <code>{{.CurrentImage}}</code>
+   Latest: <code>{{.LatestImage}}</code>
    Type: {{.UpdateType}}
 
 {{end}}
 {{if .Errors}}
-⚠️ *Errors:*
+⚠️ <b>Errors:</b>
 {{range .Errors}}• {{.}}
 {{end}}
 {{end}}`

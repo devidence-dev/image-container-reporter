@@ -86,7 +86,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		// Escanear contenedores en ejecución
 		result, err = scanDockerDaemon(ctx, dockerClient, cfg, logger)
 		if err != nil {
-			return fmt.Errorf("Docker daemon scan failed: %w", err)
+			return fmt.Errorf("docker daemon scan failed: %w", err)
 		}
 	} else {
 		logger.Info("Starting compose files scan")
@@ -126,12 +126,39 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	// Enviar notificaciones si está habilitado
+	logger.Info("Notification check", "notify_flag", notify, "has_clients", notifySvc.HasClients(), "has_updates", result.HasUpdates(), "has_errors", result.HasErrors())
 	if notify && notifySvc.HasClients() {
-		if err := notifySvc.NotifyScanResult(ctx, result, getFormatter(outputFormat, reportSvc)); err != nil {
-			logger.Error("Failed to send notifications", "error", err)
-			// No retornamos error aquí, el scan fue exitoso
+		// Para notificaciones, generar HTML y enviarlo como archivo adjunto
+		htmlFormatter := reportSvc.htmlFormatter
+		htmlContent, err := htmlFormatter.Format(result)
+		if err != nil {
+			logger.Error("Failed to format HTML report", "error", err)
 		} else {
-			logger.Info("Notifications sent successfully")
+			// Crear archivo temporal
+			tempFile, err := os.CreateTemp("", "docker-report-*.html")
+			if err != nil {
+				logger.Error("Failed to create temp file", "error", err)
+			} else {
+				defer os.Remove(tempFile.Name()) // Limpiar archivo temporal
+
+				// Escribir contenido HTML
+				if _, err := tempFile.WriteString(htmlContent); err != nil {
+					logger.Error("Failed to write HTML to temp file", "error", err)
+				} else {
+					tempFile.Close()
+
+					// Enviar archivo como adjunto
+					caption := fmt.Sprintf("🐳 <b>Docker Image Updates Report</b>\n\n📊 <b>Summary:</b> %s\n📅 <b>Scanned:</b> %s",
+						result.Summary(),
+						result.ScanTimestamp.Format("2006-01-02 15:04:05"))
+
+					if err := notifySvc.SendFile(ctx, tempFile.Name(), "docker-updates-report.html", caption); err != nil {
+						logger.Error("Failed to send HTML report", "error", err)
+					} else {
+						logger.Info("HTML report sent successfully")
+					}
+				}
+			}
 		}
 	} else if notify && !notifySvc.HasClients() {
 		logger.Warn("Notification requested but no clients configured")
@@ -189,9 +216,14 @@ func createNotificationService(cfg *types.Config) *notifier.NotificationService 
 	notifySvc := notifier.NewNotificationService()
 
 	// Agregar cliente de Telegram si está configurado
+	logger := slog.Default()
+	logger.Info("Telegram config check", "enabled", cfg.Telegram.Enabled, "bot_token_set", cfg.Telegram.BotToken != "", "chat_id_set", cfg.Telegram.ChatID != "")
 	if cfg.Telegram.Enabled && cfg.Telegram.BotToken != "" && cfg.Telegram.ChatID != "" {
 		telegramClient := notifier.NewTelegramClient(cfg.Telegram.BotToken, cfg.Telegram.ChatID)
 		notifySvc.AddClient(telegramClient)
+		logger.Info("Telegram client added to notification service")
+	} else {
+		logger.Warn("Telegram client not added due to missing configuration")
 	}
 
 	return notifySvc
@@ -315,6 +347,13 @@ func scanDockerDaemon(ctx context.Context, dockerClient *docker.Client, cfg *typ
 	for _, image := range images {
 		logger.Debug("Checking image for updates", "service", image.ServiceName, "image", image.String())
 
+		// Skip local images that are likely not available in public registries
+		if isLocalImage(image) {
+			logger.Info("Skipping local image", "service", image.ServiceName, "image", image.String())
+			upToDate = append(upToDate, image.ServiceName)
+			continue
+		}
+
 		// Buscar cliente de registro apropiado
 		var client types.RegistryClient
 		for _, reg := range registryClients {
@@ -347,22 +386,28 @@ func scanDockerDaemon(ctx context.Context, dockerClient *docker.Client, cfg *typ
 			continue
 		}
 
+		logger.Info("Retrieved tags from registry", "service", image.ServiceName, "current_tag", image.Tag, "tags_count", len(tags))
+
 		// Filtrar y ordenar tags para encontrar la versión estable más reciente
 		stableTags := utils.FilterPreReleases(tags)
 		if len(stableTags) == 0 {
-			logger.Debug("No stable tags found, using all tags", "image", image.String())
+			logger.Info("No stable tags found, using all tags", "service", image.ServiceName, "image", image.String())
 			stableTags = tags
 		}
 
+		logger.Info("Stable tags after filtering", "service", image.ServiceName, "stable_count", len(stableTags))
+
 		sortedTags := utils.SortVersions(stableTags)
 		latestTag := sortedTags[0]
+
+		logger.Info("Version comparison", "service", image.ServiceName, "current", image.Tag, "latest", latestTag)
 
 		// Comparar versiones
 		updateType := utils.CompareVersions(image.Tag, latestTag)
 
 		if updateType == types.UpdateTypeNone {
 			upToDate = append(upToDate, image.ServiceName)
-			logger.Debug("Image is up to date", "service", image.ServiceName, "image", image.String())
+			logger.Info("Image is up to date", "service", image.ServiceName, "current", image.Tag, "latest", latestTag)
 			continue
 		}
 
@@ -397,6 +442,69 @@ func scanDockerDaemon(ctx context.Context, dockerClient *docker.Client, cfg *typ
 	}
 
 	return result, nil
+}
+
+// isLocalImage checks if an image appears to be built locally and not available in public registries
+func isLocalImage(image types.DockerImage) bool {
+	// Extract the actual image name from repository (remove library/ prefix if present)
+	imageName := strings.TrimPrefix(image.Repository, "library/")
+
+	// Known local image patterns (specific images that are definitely local builds)
+	knownLocalImages := []string{
+		"github-runner-github-runner",
+		"gaganode-gaganode",
+		"devidence-home-app",
+		"automation-hub-automation-hub",
+	}
+
+	// Check exact matches for known local images
+	for _, localImg := range knownLocalImages {
+		if imageName == localImg {
+			return true
+		}
+	}
+
+	// Pattern-based detection
+	// Images with repetitive names (name-name-name pattern)
+	parts := strings.Split(imageName, "-")
+	if len(parts) >= 2 {
+		// Check if parts repeat (like github-runner-github-runner)
+		firstPart := parts[0]
+		for i := 1; i < len(parts); i++ {
+			if parts[i] == firstPart {
+				return true // Repetitive pattern detected
+			}
+		}
+	}
+
+	// Check for Docker Compose naming patterns
+	if strings.Contains(imageName, "-") && strings.Contains(imageName, "_") {
+		return true
+	}
+
+	// Check for common local image patterns
+	if strings.Contains(imageName, "local") ||
+		strings.Contains(imageName, "dev") ||
+		strings.Contains(imageName, "build") ||
+		strings.Contains(imageName, "custom") {
+		return true
+	}
+
+	// Check if it's a hash-like name (built from commit hash)
+	if len(imageName) >= 8 && len(imageName) <= 12 {
+		// Check if it's mostly hexadecimal characters
+		hexCount := 0
+		for _, char := range imageName {
+			if (char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') || (char >= 'A' && char <= 'F') {
+				hexCount++
+			}
+		}
+		if float64(hexCount)/float64(len(imageName)) > 0.8 {
+			return true // Likely a hash
+		}
+	}
+
+	return false
 }
 
 // canHandleRegistryForImage checks if a registry client can handle the given registry

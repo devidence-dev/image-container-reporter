@@ -47,16 +47,20 @@ func TestDockerHubClient_isValidTag(t *testing.T) {
 		tag      string
 		expected bool
 	}{
-		{"1.20", true},
-		{"v1.0.0", true},
-		{"latest", true},
-		{"stable", true},
-		{"nightly", false},
-		{"dev", false},
-		{"development", false},
-		{"abc123def", false},        // SHA-like
+		{"1.20", true},              // Semantic version
+		{"v1.0.0", true},            // Semantic version with prefix
+		{"latest", true},            // Always allowed
+		{"stable", true},            // Normal tag
+		{"nightly", false},          // Development tag
+		{"dev-branch", false},       // Development tag with prefix
+		{"development-test", false}, // Development tag with prefix
+		{"abc123def456789", false},  // SHA-like (12+ chars)
 		{"1234567890abcdef", false}, // SHA-like
-		{"edge", false},
+		{"edge", true},              // Now allowed (not in strict dev filters)
+		{"dev", true},               // Single "dev" now allowed
+		{"development", true},       // Single "development" now allowed
+		{"temp123", false},          // Contains temp
+		{"tmp-build", false},        // Contains tmp
 	}
 
 	for _, tt := range tests {

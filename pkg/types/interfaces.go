@@ -28,6 +28,9 @@ type NotificationClient interface {
 	// SendNotification envía una notificación con el mensaje dado
 	SendNotification(ctx context.Context, message string) error
 
+	// SendFile envía un archivo como adjunto
+	SendFile(ctx context.Context, filePath, fileName, caption string) error
+
 	// Name devuelve el nombre del cliente de notificación
 	Name() string
 }

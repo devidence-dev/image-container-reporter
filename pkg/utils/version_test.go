@@ -302,9 +302,9 @@ func TestNormalizeVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := normalizeVersion(tt.input)
+			result := NormalizeVersion(tt.input)
 			if result != tt.expected {
-				t.Errorf("normalizeVersion(%q) = %q, want %q", tt.input, result, tt.expected)
+				t.Errorf("NormalizeVersion(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}

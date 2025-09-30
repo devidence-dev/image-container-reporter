@@ -79,6 +79,27 @@ func (s *NotificationService) NotifyCustomMessage(ctx context.Context, message s
 	return nil
 }
 
+// SendFile envía un archivo como adjunto a todos los clientes
+func (s *NotificationService) SendFile(ctx context.Context, filePath, fileName, caption string) error {
+	if len(s.clients) == 0 {
+		return nil // No hay clientes configurados, no es un error
+	}
+
+	// Enviar a todos los clientes
+	var errs []string
+	for _, client := range s.clients {
+		if err := client.SendFile(ctx, filePath, fileName, caption); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", client.Name(), err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Newf("notification.SendFile", "failed to send file: %s", strings.Join(errs, "; "))
+	}
+
+	return nil
+}
+
 // HasClients verifica si hay clientes de notificación configurados
 func (s *NotificationService) HasClients() bool {
 	return len(s.clients) > 0

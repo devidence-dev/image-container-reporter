@@ -33,8 +33,8 @@ func CompareVersions(currentVersion, newVersion string) types.UpdateType {
 
 // compareSemantic attempts to parse versions as semantic versions and compare them
 func compareSemantic(currentVersion, newVersion string) types.UpdateType {
-	currentSemver, err1 := semver.NewVersion(normalizeVersion(currentVersion))
-	newSemver, err2 := semver.NewVersion(normalizeVersion(newVersion))
+	currentSemver, err1 := semver.NewVersion(NormalizeVersion(currentVersion))
+	newSemver, err2 := semver.NewVersion(NormalizeVersion(newVersion))
 
 	// If either version can't be parsed as semantic, return unknown
 	if err1 != nil || err2 != nil {
@@ -78,13 +78,17 @@ func compareString(currentVersion, newVersion string) types.UpdateType {
 	return types.UpdateTypeNone
 }
 
-// normalizeVersion removes common prefixes and suffixes to help with parsing
-func normalizeVersion(version string) string {
+// NormalizeVersion removes common prefixes and suffixes to help with parsing
+func NormalizeVersion(version string) string {
 	// Remove 'v' prefix if present
 	normalized := strings.TrimPrefix(version, "v")
 
 	// Remove common suffixes that might interfere with parsing
-	suffixes := []string{"-alpine", "-slim", "-scratch"}
+	suffixes := []string{
+		"-alpine", "-slim", "-scratch", "-ubuntu", "-debian", 
+		"-bullseye", "-buster", "-focal", "-jammy",
+		"-musl", "-glibc",
+	}
 	for _, suffix := range suffixes {
 		if strings.HasSuffix(normalized, suffix) {
 			normalized = strings.TrimSuffix(normalized, suffix)
@@ -120,7 +124,7 @@ func IsPreRelease(version string) bool {
 
 // IsSemanticVersion checks if a version string looks like semantic versioning
 func IsSemanticVersion(version string) bool {
-	return semverRegex.MatchString(normalizeVersion(version))
+	return semverRegex.MatchString(NormalizeVersion(version))
 }
 
 // FilterPreReleases filters out pre-release versions from a slice of tags
@@ -179,7 +183,7 @@ func sortSemanticVersions(versions []string) []string {
 
 	var pairs []versionPair
 	for _, version := range versions {
-		if sv, err := semver.NewVersion(normalizeVersion(version)); err == nil {
+		if sv, err := semver.NewVersion(NormalizeVersion(version)); err == nil {
 			pairs = append(pairs, versionPair{original: version, semver: sv})
 		}
 	}
