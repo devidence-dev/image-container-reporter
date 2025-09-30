@@ -49,7 +49,8 @@ func (d *DockerHubClient) GetLatestTags(ctx context.Context, image types.DockerI
 	repository := d.normalizeRepository(image.Repository)
 
 	// Usar la API pública de Docker Hub para obtener tags
-	url := fmt.Sprintf("https://registry.hub.docker.com/v2/repositories/%s/tags?page_size=25&ordering=-last_updated", repository)
+	// Incrementamos page_size y usamos ordering por nombre para obtener versiones más recientes
+	url := fmt.Sprintf("https://registry.hub.docker.com/v2/repositories/%s/tags?page_size=100", repository)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -160,35 +161,47 @@ func (d *DockerHubClient) normalizeRepository(repository string) string {
 
 // isValidTag determina si un tag es válido para consideración
 func (d *DockerHubClient) isValidTag(tag string) bool {
-	// Filtrar tags que generalmente no son útiles
-	invalidTags := []string{
-		"latest",
-		"edge",
-		"nightly",
-		"dev",
-		"devel",
-		"development",
-		"unstable",
-		"canary",
-	}
-
 	tagLower := strings.ToLower(tag)
 
-	// Permitir latest pero ponerlo al final
+	// Siempre permitir latest
 	if tagLower == "latest" {
 		return true
 	}
 
-	// Filtrar tags de desarrollo
-	for _, invalid := range invalidTags[1:] { // Skip "latest"
+	// Priorizar versiones semánticas (x.y.z pattern)
+	if strings.Count(tag, ".") >= 1 {
+		// Es probablemente una versión semántica
+		return true
+	}
+
+	// Filtrar tags de desarrollo específicos
+	developmentTags := []string{
+		"nightly", "snapshot", "dev-", "devel-", "development-",
+		"unstable-", "canary-", "alpha", "beta", "rc-", "test-",
+	}
+
+	for _, invalid := range developmentTags {
 		if strings.Contains(tagLower, invalid) {
 			return false
 		}
 	}
 
-	// Filtrar tags que parecen commits SHA
-	if len(tag) >= 7 && len(tag) <= 40 && isHexString(tag) {
+	// Filtrar tags que parecen commits SHA (12+ caracteres, mostly hex)
+	if len(tag) >= 12 && len(tag) <= 40 && isHexString(tag) {
 		return false
+	}
+
+	// Filtrar tags temporales
+	if strings.Contains(tagLower, "temp") || strings.Contains(tagLower, "tmp") {
+		return false
+	}
+
+	// Filtrar tags de arquitectura específica sin versión
+	archTags := []string{"linux-", "windows-", "arm64-", "amd64-", "ppc64le-", "s390x-"}
+	for _, arch := range archTags {
+		if strings.HasPrefix(tagLower, arch) {
+			return false
+		}
 	}
 
 	return true
