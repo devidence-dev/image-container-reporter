@@ -105,6 +105,11 @@ func TestIsPreRelease(t *testing.T) {
 		{"latest tag", "latest", false},
 		{"stable tag", "stable", false},
 		{"version with Alpha uppercase", "1.0.0-Alpha", true},
+		{"version with b suffix", "v0.108.0-b.76", true},
+		{"version with a suffix", "1.0.0-a.1", true},
+		{"version with pre suffix", "1.0.0-pre", true},
+		{"version with preview suffix", "1.0.0-preview", true},
+		{"version with unstable suffix", "1.0.0-unstable", true},
 	}
 
 	for _, tt := range tests {
@@ -155,6 +160,9 @@ func TestFilterPreReleases(t *testing.T) {
 		"nightly",
 		"latest",
 		"dev-branch",
+		"v0.108.0-b.76",
+		"1.0.0-a.1",
+		"1.0.0-pre",
 	}
 
 	expected := []string{
@@ -588,6 +596,92 @@ func TestClassifyVersionUpdate(t *testing.T) {
 
 			if result.Description != tt.expectedDesc {
 				t.Errorf("Description = %q, want %q", result.Description, tt.expectedDesc)
+			}
+		})
+	}
+}
+
+func TestExtractVersionSuffix(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"alpine suffix", "2.10.0-alpine", "-alpine"},
+		{"slim suffix", "1.0.0-slim", "-slim"},
+		{"debian suffix", "1.0.0-debian", "-debian"},
+		{"ubuntu suffix", "1.0.0-ubuntu", "-ubuntu"},
+		{"bullseye suffix", "1.0.0-bullseye", "-bullseye"},
+		{"no suffix", "2.10.0", ""},
+		{"latest tag", "latest", ""},
+		{"case insensitive", "2.10.0-ALPINE", "-alpine"},
+		{"unknown suffix", "2.10.0-custom", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ExtractVersionSuffix(tt.input)
+			if result != tt.expected {
+				t.Errorf("ExtractVersionSuffix(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFilterTagsBySuffix(t *testing.T) {
+	tests := []struct {
+		name           string
+		tags           []string
+		currentVersion string
+		expected       []string
+	}{
+		{
+			name:           "alpine suffix match",
+			tags:           []string{"2.10.0", "2.10.0-alpine", "2.10.1", "2.10.1-alpine", "latest"},
+			currentVersion: "2.10.0-alpine",
+			expected:       []string{"2.10.0-alpine", "2.10.1-alpine"},
+		},
+		{
+			name:           "slim suffix match",
+			tags:           []string{"1.0.0", "1.0.0-slim", "1.1.0", "1.1.0-slim"},
+			currentVersion: "1.0.0-slim",
+			expected:       []string{"1.0.0-slim", "1.1.0-slim"},
+		},
+		{
+			name:           "no suffix in current version",
+			tags:           []string{"2.10.0", "2.10.0-alpine", "2.10.1"},
+			currentVersion: "2.10.0",
+			expected:       []string{"2.10.0", "2.10.0-alpine", "2.10.1"},
+		},
+		{
+			name:           "no matching suffix tags",
+			tags:           []string{"2.10.0", "2.10.1", "latest"},
+			currentVersion: "2.10.0-alpine",
+			expected:       []string{}, // No compatible tags found
+		},
+		{
+			name:           "empty tags",
+			tags:           []string{},
+			currentVersion: "2.10.0-alpine",
+			expected:       []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FilterTagsBySuffix(tt.tags, tt.currentVersion)
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("FilterTagsBySuffix() returned %d items, want %d", len(result), len(tt.expected))
+				t.Errorf("Got: %v", result)
+				t.Errorf("Want: %v", tt.expected)
+				return
+			}
+
+			for i, tag := range tt.expected {
+				if result[i] != tag {
+					t.Errorf("FilterTagsBySuffix()[%d] = %q, want %q", i, result[i], tag)
+				}
 			}
 		})
 	}

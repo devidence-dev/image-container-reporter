@@ -13,6 +13,7 @@ var (
 	preReleasePatterns = []string{
 		"alpha", "beta", "rc", "dev", "devel", "development",
 		"nightly", "snapshot", "test", "experimental", "canary",
+		"pre", "preview", "unstable",
 	}
 
 	// Regex to detect if a version looks semantic
@@ -83,17 +84,11 @@ func NormalizeVersion(version string) string {
 	// Remove 'v' prefix if present
 	normalized := strings.TrimPrefix(version, "v")
 
-	// Remove common suffixes that might interfere with parsing
-	suffixes := []string{
-		"-alpine", "-slim", "-scratch", "-ubuntu", "-debian", 
-		"-bullseye", "-buster", "-focal", "-jammy",
-		"-musl", "-glibc",
-	}
-	for _, suffix := range suffixes {
-		if strings.HasSuffix(normalized, suffix) {
-			normalized = strings.TrimSuffix(normalized, suffix)
-			break
-		}
+	// Remove common suffixes (including numeric variants like -alpine3.18)
+	if suffix := ExtractVersionSuffix(normalized); suffix != "" {
+		// Remove the suffix plus any trailing digits/dots/hyphens
+		re := regexp.MustCompile("(?i)" + regexp.QuoteMeta(suffix) + `[0-9\.\-]*$`)
+		normalized = re.ReplaceAllString(normalized, "")
 	}
 
 	return normalized
@@ -108,6 +103,25 @@ func IsPreRelease(version string) bool {
 		return false
 	}
 
+	// Check for semantic versioning pre-release patterns (e.g., -alpha, -beta.1, -rc.2)
+	if strings.Contains(lowerVersion, "-alpha") ||
+		strings.Contains(lowerVersion, "-beta") ||
+		strings.Contains(lowerVersion, "-rc") ||
+		strings.Contains(lowerVersion, "-dev") ||
+		strings.Contains(lowerVersion, "-devel") ||
+		strings.Contains(lowerVersion, "-development") ||
+		strings.Contains(lowerVersion, "-pre") ||
+		strings.Contains(lowerVersion, "-preview") ||
+		strings.Contains(lowerVersion, "-unstable") {
+		return true
+	}
+
+	// Check for single letter pre-release indicators (e.g., -a.1, -b.2)
+	if regexp.MustCompile(`-[a-zA-Z]\.`).MatchString(lowerVersion) {
+		return true
+	}
+
+	// Check for other pre-release patterns
 	for _, pattern := range preReleasePatterns {
 		// Use word boundaries or specific patterns to avoid false positives
 		if strings.Contains(lowerVersion, pattern) {
@@ -115,7 +129,14 @@ func IsPreRelease(version string) bool {
 			if pattern == "test" && lowerVersion == "latest" {
 				continue
 			}
-			return true
+			// For single character patterns, be more strict
+			if len(pattern) == 1 {
+				if regexp.MustCompile(`-[a-zA-Z]\d*`).MatchString(lowerVersion) {
+					return true
+				}
+			} else {
+				return true
+			}
 		}
 	}
 
@@ -394,4 +415,135 @@ func ClassifyVersionUpdate(currentVersion, newVersion string) UpdateClassificati
 		IsSignificant: isSignificant,
 		Description:   description,
 	}
+}
+
+// ExtractVersionSuffix extracts the suffix from a version tag (e.g., "-alpine" from "2.10.0-alpine")
+func ExtractVersionSuffix(version string) string {
+	// Common Docker image suffixes
+	suffixes := []string{
+		"-alpine", "-slim", "-scratch", "-ubuntu", "-debian",
+		"-bullseye", "-buster", "-focal", "-jammy",
+		"-musl", "-glibc", "-bookworm", "-noble",
+	}
+
+	lowerVersion := strings.ToLower(version)
+	// Prefer the longest matching base suffix (avoid accidental short matches)
+	var bestMatch string
+	for _, suffix := range suffixes {
+		// Match suffix optionally followed by digits/dots/hyphens, e.g. -alpine3.18
+		pattern := `(?i)` + regexp.QuoteMeta(suffix) + `[0-9\.\-]*$`
+		if matched, _ := regexp.MatchString(pattern, lowerVersion); matched {
+			if len(suffix) > len(bestMatch) {
+				bestMatch = suffix
+			}
+		}
+	}
+
+	return bestMatch
+}
+
+// FilterTagsBySuffix filters tags to only include those with the same suffix as the current version
+func FilterTagsBySuffix(tags []string, currentVersion string) []string {
+	suffix := ExtractVersionSuffix(currentVersion)
+	if suffix == "" {
+		// No suffix in current version, return all tags
+		return tags
+	}
+
+	var filtered []string
+	// Build a pattern that matches the base suffix plus optional numeric variant suffix
+	pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(suffix) + `[0-9\.\-]*$`)
+	for _, tag := range tags {
+		if pattern.MatchString(strings.ToLower(tag)) {
+			filtered = append(filtered, tag)
+		}
+	}
+
+	// If no tags match the suffix, return empty slice to indicate no compatible updates
+	if len(filtered) == 0 {
+		return []string{}
+	}
+
+	return filtered
+}
+
+// FindBestUpdateTag returns the best candidate tag to use as the latest update for the given currentVersion.
+// It finds the highest semantic version greater than the current one (after normalization). If multiple
+// original tags map to that semantic version (e.g., with and without suffix variants), it prefers a tag
+// that matches the current suffix. If none match, it returns a generic tag from that version group.
+func FindBestUpdateTag(currentVersion string, tags []string) string {
+	if len(tags) == 0 {
+		return ""
+	}
+
+	// Build mapping from normalized semver string to original tags
+	type group struct {
+		sem  *semver.Version
+		tags []string
+	}
+
+	groups := make(map[string]*group)
+
+	for _, t := range tags {
+		norm := NormalizeVersion(t)
+		sv, err := semver.NewVersion(norm)
+		if err != nil {
+			// skip non-semver tags
+			continue
+		}
+		key := sv.String()
+		g, ok := groups[key]
+		if !ok {
+			groups[key] = &group{sem: sv, tags: []string{t}}
+		} else {
+			g.tags = append(g.tags, t)
+		}
+	}
+
+	// Parse current version
+	currSv, err := semver.NewVersion(NormalizeVersion(currentVersion))
+	if err != nil {
+		// If current is not semver, fallback to simple sort
+		sorted := SortVersions(tags)
+		if len(sorted) > 0 {
+			return sorted[0]
+		}
+		return ""
+	}
+
+	// Find highest semver greater than current
+	var best *group
+	for _, g := range groups {
+		if g.sem.Compare(currSv) <= 0 {
+			continue
+		}
+		if best == nil || best.sem.LessThan(g.sem) {
+			best = g
+		}
+	}
+
+	if best == nil {
+		return ""
+	}
+
+	// Prefer tag matching current suffix
+	suffix := ExtractVersionSuffix(currentVersion)
+	if suffix != "" {
+		pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(suffix) + `[0-9\.\-]*$`)
+		for _, t := range best.tags {
+			if pattern.MatchString(strings.ToLower(t)) {
+				return t
+			}
+		}
+	}
+
+	// If none match suffix, try to find a tag without suffix (generic)
+	for _, t := range best.tags {
+		if ExtractVersionSuffix(t) == "" {
+			return t
+		}
+	}
+
+	// Otherwise return the first available tag in the group
+	return best.tags[0]
 }

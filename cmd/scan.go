@@ -336,7 +336,7 @@ func scanDockerDaemon(ctx context.Context, dockerClient *docker.Client, cfg *typ
 	var scanErrors []string
 
 	for _, image := range images {
-		logger.Debug("Checking image for updates", "service", image.ServiceName, "image", image.String())
+		logger.Info("Checking image for updates", "service", image.ServiceName, "image", image.String())
 
 		// Skip local images that are likely not available in public registries
 		if isLocalImage(image) {
@@ -386,10 +386,28 @@ func scanDockerDaemon(ctx context.Context, dockerClient *docker.Client, cfg *typ
 			stableTags = tags
 		}
 
-		logger.Info("Stable tags after filtering", "service", image.ServiceName, "stable_count", len(stableTags))
+		// Filtrar por sufijo si la imagen actual tiene uno (ej: -alpine, -slim)
+		suffixFilteredTags := utils.FilterTagsBySuffix(stableTags, image.Tag)
+		tagsToUse := suffixFilteredTags
+		if len(suffixFilteredTags) == 0 {
+			// No hay tags compatibles con el sufijo, usar todos los tags estables
+			logger.Info("No suffix-compatible updates found, falling back to all stable tags", "service", image.ServiceName, "image", image.String())
+			tagsToUse = stableTags
+		} else if len(suffixFilteredTags) != len(stableTags) {
+			logger.Info("Filtered tags by suffix", "service", image.ServiceName, "original_count", len(stableTags), "filtered_count", len(suffixFilteredTags))
+		}
 
-		sortedTags := utils.SortVersions(stableTags)
-		latestTag := sortedTags[0]
+		logger.Info("Stable tags after filtering", "service", image.ServiceName, "stable_count", len(suffixFilteredTags))
+
+		// Choose the best candidate tag considering semver and suffix preference
+		latestTag := utils.FindBestUpdateTag(image.Tag, tagsToUse)
+		if latestTag == "" {
+			// Fallback to sorted pick if FindBestUpdateTag couldn't determine
+			sortedTags := utils.SortVersions(tagsToUse)
+			if len(sortedTags) > 0 {
+				latestTag = sortedTags[0]
+			}
+		}
 
 		logger.Info("Version comparison", "service", image.ServiceName, "current", image.Tag, "latest", latestTag)
 

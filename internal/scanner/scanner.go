@@ -259,8 +259,25 @@ func (s *Service) checkImageForUpdates(ctx context.Context, serviceKey string, i
 		stableTags = tags
 	}
 
-	sortedTags := utils.SortVersions(stableTags)
-	latestTag := sortedTags[0]
+	// Filter by suffix if the current image has one (e.g., -alpine, -slim)
+	suffixFilteredTags := utils.FilterTagsBySuffix(stableTags, image.Tag)
+	tagsToUse := suffixFilteredTags
+	if len(suffixFilteredTags) == 0 {
+		// No compatible tags found for image with suffix, use all stable tags
+		s.logger.Debug("No suffix-compatible updates found, falling back to all stable tags", "image", image.String())
+		tagsToUse = stableTags
+	} else if len(suffixFilteredTags) != len(stableTags) {
+		s.logger.Debug("Filtered tags by suffix", "image", image.String(), "original_count", len(stableTags), "filtered_count", len(suffixFilteredTags))
+	}
+
+	// Choose the best candidate tag considering semver and suffix preference
+	latestTag := utils.FindBestUpdateTag(image.Tag, tagsToUse)
+	if latestTag == "" {
+		sortedTags := utils.SortVersions(tagsToUse)
+		if len(sortedTags) > 0 {
+			latestTag = sortedTags[0]
+		}
+	}
 
 	// Compare versions
 	updateType := utils.CompareVersions(image.Tag, latestTag)
