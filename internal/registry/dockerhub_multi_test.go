@@ -105,7 +105,9 @@ func TestMultipleImageUpdates(t *testing.T) {
 		if response, exists := mockResponses[path]; exists {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(response))
+			if _, err := w.Write([]byte(response)); err != nil {
+				t.Errorf("Error writing response: %v", err)
+			}
 			return
 		}
 		t.Logf("Mock server: No response for path: %s", path)
@@ -311,7 +313,7 @@ func TestRealDockerHubAPI_Manual(t *testing.T) {
 				return
 			}
 
-			t.Logf("Real API - %s tags (%d): %v", image.Repository, len(tags), tags[:min(10, len(tags))])
+			t.Logf("Real API - %s tags (%d): %v", image.Repository, len(tags), tags[:minInt(10, len(tags))])
 
 			if len(tags) > 0 {
 				stableTags := utils.FilterPreReleases(tags)
@@ -327,7 +329,7 @@ func TestRealDockerHubAPI_Manual(t *testing.T) {
 	}
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

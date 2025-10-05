@@ -39,7 +39,9 @@ func TestPortainerVersionDetection(t *testing.T) {
 			}`
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(response))
+			if _, err := w.Write([]byte(response)); err != nil {
+				t.Errorf("Error writing response: %v", err)
+			}
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)

@@ -296,15 +296,6 @@ func outputConsole(cmd *cobra.Command, result types.ScanResult) error {
 	return nil
 }
 
-func getFormatter(format string, reportSvc *reportService) types.ReportFormatter {
-	switch strings.ToLower(format) {
-	case formatHTML:
-		return reportSvc.htmlFormatter
-	default:
-		return reportSvc.jsonFormatter
-	}
-}
-
 // scanDockerDaemon executes a scan using Docker daemon to inspect running containers
 func scanDockerDaemon(ctx context.Context, dockerClient *docker.Client, cfg *types.Config, logger *slog.Logger) (types.ScanResult, error) {
 	// Obtener imágenes de contenedores en ejecución

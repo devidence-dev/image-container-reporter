@@ -77,77 +77,28 @@ jobs:
           sha256sum "release/$BINARY_NAME" > "release/${BINARY_NAME}.sha256"
         done
 
-    - name: Create release notes
-      run: |
-        cat > release/RELEASE_NOTES.md << 'EOF'
-        # Image Container Reporter (ICR) ${{ github.ref_name }}
-
-        A powerful tool to scan docker-compose files and report available updates for Docker images from various registries.
-
-        ## What's New
-
-        This release includes bug fixes and improvements.
-
-        ## Installation
-
-        Download the appropriate binary for your platform from the assets below.
-
-        ### ARM64 (Raspberry Pi 5, Apple Silicon, etc.)
-        ```bash
-        # For ARM64 platforms (Raspberry Pi 5, Apple M1/M2/M3, etc.)
-        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-arm64
-        wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-arm64.sha256
-        sha256sum -c icr-linux-arm64.sha256
-
-        chmod +x icr-linux-arm64
-        sudo mv icr-linux-arm64 /usr/local/bin/icr
-        ```
-
-        ### Other Platforms
-
-        This release only includes binaries for Linux ARM64. For other platforms (AMD64, macOS, Windows), you can build from source:
-
-        ```bash
-        git clone https://github.com/${{ github.repository }}.git
-        cd image-container-reporter
-        go build -o icr ./main.go
-        ```
-
-        ## Usage
-
-        ```bash
-        # Scan current directory
-        icr scan
-
-        # Scan specific path
-        icr scan /path/to/docker-compose.yml
-
-        # Scan and send Telegram notification
-        icr scan --notify
-        ```
-
-        ## Configuration
-
-        Create a configuration file at `~/.icr/config.yml`:
-
-        ```yaml
-        telegram:
-          bot_token: "your_bot_token_here"
-          chat_id: "your_chat_id_here"
-
-        registries:
-          github:
-            token: "your_github_token_here"
-        ```
-
-        For detailed documentation, see: https://github.com/${{ github.repository }}/blob/main/README.md
-        EOF
-
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         files: release/*
-        body_path: release/RELEASE_NOTES.md
+        body: |
+          ## Image Container Reporter (ICR) ${{ github.ref_name }}
+
+          A powerful tool to scan docker-compose files and report available updates for Docker images from various registries.
+
+          ### Downloads
+          - **Linux ARM64**: `icr-linux-arm64` + `icr-linux-arm64.sha256`
+
+          ### Installation
+          ```bash
+          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-arm64
+          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-arm64.sha256
+          sha256sum -c icr-linux-arm64.sha256
+          chmod +x icr-linux-arm64
+          sudo mv icr-linux-arm64 /usr/local/bin/icr
+          ```
+
+          For more information, see: https://github.com/${{ github.repository }}/blob/main/README.md
         draft: false
         prerelease: false
       env:

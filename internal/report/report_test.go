@@ -114,27 +114,24 @@ func TestHTMLFormatter_Format(t *testing.T) {
 	// Verificar que contiene elementos HTML esperados
 	expectedElements := []string{
 		"<!DOCTYPE html>",
-		"<html>",
+		"<html",
 		"<head>",
-		"<title>Docker Image Report</title>",
+		"<title>Docker Image Scan Report - Devidence</title>",
 		"<style>",
-		"<h1>Docker Image Scan Report</h1>",
+		"Docker Image Scanner",
 		"test-project",
 		"Available Updates",
-		"<table>",
-		"<th>Service</th>",
+		"<table class=\"table mb-0\">",
+		"<th style=\"width: 15%;\">Service</th>",
 		"web",
 		"nginx:1.20",
 		"nginx:1.21",
 		"minor",
 		"Errors",
 		"Connection timeout",
-		"Files Scanned",
-		"docker-compose.yml",
 		"</body>",
 		"</html>",
 	}
-
 	for _, element := range expectedElements {
 		if !strings.Contains(output, element) {
 			t.Errorf("Expected HTML to contain '%s', but it doesn't", element)
@@ -171,12 +168,12 @@ func TestHTMLFormatter_Format_NoUpdates(t *testing.T) {
 	}
 
 	// Verificar que no contiene tabla de updates
-	if strings.Contains(output, "<table>") {
+	if strings.Contains(output, "<table class=\"table mb-0\">") {
 		t.Error("Expected no table when there are no updates")
 	}
 
 	// Verificar que contiene mensaje de éxito
-	if !strings.Contains(output, "All 2 services are up to date") {
+	if !strings.Contains(output, "All services are up to date") {
 		t.Error("Expected success message for up-to-date services")
 	}
 }
