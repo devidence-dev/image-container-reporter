@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Docker Image Scan Report - Devidence</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        {{.Styles}}
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-stack me-2"></i>Docker Image Scanner
+            </span>
+            <button class="theme-toggle">
+                <i class="bi bi-moon-fill"></i>
+            </button>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row g-0">
+            <div class="col-lg-3 sidebar">
+                <div class="mb-4">
+                    <h6 class="text-uppercase" style="color: var(--text-secondary); font-size: 0.75rem; letter-spacing: 1px;">Project Info</h6>
+                    <p class="mb-1"><strong>{{.ProjectName}}</strong></p>
+                    <p class="mb-0" style="color: var(--text-secondary); font-size: 0.85rem;">
+                        <i class="bi bi-clock me-1"></i>{{.ScanTimestamp}}
+                    </p>
+                </div>
+
+                <div class="metric-box">
+                    <div class="metric-value" style="color: var(--accent-blue);">{{.TotalServices}}</div>
+                    <div class="metric-label">Total Services</div>
+                </div>
+
+                <div class="metric-box">
+                    <div class="metric-value" style="color: var(--accent-yellow);">{{.UpdatesCount}}</div>
+                    <div class="metric-label">Pending Updates</div>
+                </div>
+
+                <div class="metric-box">
+                    <div class="metric-value" style="color: var(--accent-green);">{{.UpToDateCount}}</div>
+                    <div class="metric-label">Up to Date</div>
+                </div>
+
+                <div class="mt-4 pt-3" style="border-top: 1px solid var(--border-color);">
+                    <h6 class="text-uppercase mb-3" style="color: var(--text-secondary); font-size: 0.75rem;">Update Distribution</h6>
+                    {{range .UpdateDistribution}}
+                    <div class="d-flex justify-content-between mb-2">
+                        <span style="color: var(--text-secondary); font-size: 0.85rem;">{{.Type}}</span>
+                        <span style="color: {{.Color}};">{{.Count}}</span>
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+
+            <div class="col-lg-9 content-area">
+                {{if .HasUpdates}}
+                <div class="status-badge warning">
+                    <i class="bi bi-exclamation-triangle-fill" style="color: var(--accent-yellow);"></i>
+                    <span><strong>{{.UpdatesCount}} updates available</strong> across your services</span>
+                </div>
+                {{else}}
+                <div class="status-badge success">
+                    <i class="bi bi-check-circle-fill" style="color: var(--accent-green);"></i>
+                    <span><strong>All services are up to date</strong></span>
+                </div>
+                {{end}}
+
+                {{if gt (len .Updates) 0}}
+                <div class="section-header">
+                    <i class="bi bi-arrow-repeat" style="color: var(--accent-blue);"></i>
+                    <h5>Available Updates</h5>
+                </div>
+
+                <div class="table-devops">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 15%;">Service</th>
+                                <th style="width: 30%;">Current Image</th>
+                                <th style="width: 30%;">Latest Image</th>
+                                <th style="width: 10%;">Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .Updates}}
+                            <tr>
+                                <td>
+                                    <div class="service-name">
+                                        <i class="bi bi-box"></i>
+                                        {{.ServiceName}}
+                                    </div>
+                                </td>
+                                <td>
+                                    <code class="image-tag">{{.CurrentImage}}</code>
+                                </td>
+                                <td>
+                                    <code class="image-tag">{{.LatestImage}}</code>
+                                </td>
+                                <td>
+                                    <span class="badge-type {{.BadgeClass}}">{{.UpdateType}}</span>
+                                </td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+                {{end}}
+
+                {{if gt (len .Errors) 0}}
+                <div class="section-header mt-4">
+                    <i class="bi bi-exclamation-triangle" style="color: var(--accent-red);"></i>
+                    <h5>Errors</h5>
+                </div>
+                <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
+                    <ul style="margin-bottom: 0; color: var(--accent-red);">
+                        {{range .Errors}}
+                        <li>{{.}}</li>
+                        {{end}}
+                    </ul>
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
