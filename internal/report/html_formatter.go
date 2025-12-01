@@ -43,7 +43,6 @@ type UpdateItem struct {
 
 // templateData estructura los datos para el template
 type templateData struct {
-	Styles             template.HTML
 	ProjectName        string
 	ScanTimestamp      string
 	TotalServices      int
@@ -69,7 +68,11 @@ func (f HTMLFormatter) Format(result types.ScanResult) (string, error) {
 		return "", fmt.Errorf("error loading template: %w", err)
 	}
 
-	tmpl, err := template.New("report").Parse(string(tmplBytes))
+	// Reemplazar placeholder de CSS en el template antes de parsear
+	// #nosec G203 - cssBytes proviene de archivos embebidos internos, no de entrada del usuario
+	templateContent := strings.ReplaceAll(string(tmplBytes), "{{.Styles}}", string(cssBytes))
+
+	tmpl, err := template.New("report").Parse(templateContent)
 	if err != nil {
 		return "", fmt.Errorf("error parsing template: %w", err)
 	}
@@ -123,9 +126,7 @@ func (f HTMLFormatter) Format(result types.ScanResult) (string, error) {
 	}
 
 	// Preparar datos del template
-	// #nosec G203 - cssBytes proviene de archivos embebidos internos, no de entrada del usuario
 	data := templateData{
-		Styles:             template.HTML(cssBytes),
 		ProjectName:        html.EscapeString(result.ProjectName),
 		ScanTimestamp:      result.ScanTimestamp.Format("Jan 2, 2006 15:04 MST"),
 		TotalServices:      result.TotalServicesFound,
