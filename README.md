@@ -4,7 +4,7 @@ A command-line tool written in Go that scans docker-compose files to detect avai
 
 [![CI](https://github.com/devidence-dev/image-container-reporter/workflows/CI/badge.svg)](https://github.com/devidence-dev/image-container-reporter/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/devidence-dev/image-container-reporter)](https://goreportcard.com/report/github.com/devidence-dev/image-container-reporter)
-[![Go Version](https://img.shields.io/badge/go-1.25+-blue.svg)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/go-1.25.2+-blue.svg)](https://golang.org)
 
 ## Features
 
@@ -501,7 +501,7 @@ icr --verbose scan
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.25.2+ (to avoid Go stdlib vulnerabilities fixed in 1.25.2)
 - Git
 - Make (optional)
 
