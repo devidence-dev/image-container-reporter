@@ -189,7 +189,7 @@ jobs:
   sonarqube:
     name: SonarQube Analysis
     needs: [test, build, osv-scan, dependency-check]
-    if: ${{ github.ref == 'refs/heads/main' && secrets.SONAR_TOKEN != '' && secrets.SONAR_HOST_URL != '' }}
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
