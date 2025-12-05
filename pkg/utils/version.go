@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -18,6 +19,10 @@ var (
 
 	// Regex to detect if a version looks semantic
 	semverRegex = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)`)
+
+	// Regex helpers to allow padding numeric Docker tags like "18.1" or "19"
+	twoPartSemverRegex = regexp.MustCompile(`^v?\d+\.\d+$`)
+	onePartSemverRegex = regexp.MustCompile(`^v?\d+$`)
 )
 
 // CompareVersions compares two version strings and returns the update type
@@ -34,8 +39,8 @@ func CompareVersions(currentVersion, newVersion string) types.UpdateType {
 
 // compareSemantic attempts to parse versions as semantic versions and compare them
 func compareSemantic(currentVersion, newVersion string) types.UpdateType {
-	currentSemver, err1 := semver.NewVersion(NormalizeVersion(currentVersion))
-	newSemver, err2 := semver.NewVersion(NormalizeVersion(newVersion))
+	currentSemver, err1 := parseFlexibleSemver(currentVersion)
+	newSemver, err2 := parseFlexibleSemver(newVersion)
 
 	// If either version can't be parsed as semantic, return unknown
 	if err1 != nil || err2 != nil {
@@ -92,6 +97,26 @@ func NormalizeVersion(version string) string {
 	}
 
 	return normalized
+}
+
+// parseFlexibleSemver parses Docker tags that may omit patch or minor parts by padding them.
+// Examples: "18.1" -> "18.1.0", "19" -> "19.0.0".
+func parseFlexibleSemver(version string) (*semver.Version, error) {
+	normalized := NormalizeVersion(version)
+
+	if sv, err := semver.NewVersion(normalized); err == nil {
+		return sv, nil
+	}
+
+	if twoPartSemverRegex.MatchString(normalized) {
+		return semver.NewVersion(normalized + ".0")
+	}
+
+	if onePartSemverRegex.MatchString(normalized) {
+		return semver.NewVersion(normalized + ".0.0")
+	}
+
+	return nil, fmt.Errorf("version is not semantic: %s", version)
 }
 
 // IsPreRelease checks if a version string contains pre-release indicators
@@ -485,8 +510,7 @@ func FindBestUpdateTag(currentVersion string, tags []string) string {
 	groups := make(map[string]*group)
 
 	for _, t := range tags {
-		norm := NormalizeVersion(t)
-		sv, err := semver.NewVersion(norm)
+		sv, err := parseFlexibleSemver(t)
 		if err != nil {
 			// skip non-semver tags
 			continue
@@ -501,7 +525,7 @@ func FindBestUpdateTag(currentVersion string, tags []string) string {
 	}
 
 	// Parse current version
-	currSv, err := semver.NewVersion(NormalizeVersion(currentVersion))
+	currSv, err := parseFlexibleSemver(currentVersion)
 	if err != nil {
 		// If current is not semver, fallback to simple sort
 		sorted := SortVersions(tags)

@@ -75,6 +75,12 @@ func TestCompareVersions(t *testing.T) {
 			newVersion:     "1.1.0-alpine",
 			expected:       types.UpdateTypeMinor,
 		},
+		{
+			name:           "two-part version compared to higher major",
+			currentVersion: "18.1",
+			newVersion:     "19",
+			expected:       types.UpdateTypeMajor,
+		},
 	}
 
 	for _, tt := range tests {
@@ -234,6 +240,17 @@ func TestSortVersions(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestFindBestUpdateTagPrefersSemverOverCodenames(t *testing.T) {
+	current := "18.1"
+	tags := []string{"trixie", "bookworm", "18.1", "18.2", "19", "latest"}
+
+	best := FindBestUpdateTag(current, tags)
+
+	if best != "19" {
+		t.Fatalf("expected best tag to be 19, got %s", best)
 	}
 }
 
