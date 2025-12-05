@@ -151,7 +151,7 @@ jobs:
 
     - name: Run OSV scan
       run: |
-        osv-scanner scan --lockfile=go.mod --lockfile=go.sum --format=json --output=osv-report.json
+        osv-scanner scan --lockfile=go.mod --format=json --output=osv-report.json
 
     - name: Upload OSV report
       uses: actions/upload-artifact@v4
