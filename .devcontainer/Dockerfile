@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y \
 RUN useradd -m -s /bin/bash vscode && \
     echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Instalar Go 1.25.4
-RUN curl -fsSL https://go.dev/dl/go1.25.4.linux-$(dpkg --print-architecture).tar.gz | \
+# Instalar Go 1.25.5
+RUN curl -fsSL https://go.dev/dl/go1.25.5.linux-$(dpkg --print-architecture).tar.gz | \
     tar -C /usr/local -xzf -
 
 # Configurar PATH para Go
