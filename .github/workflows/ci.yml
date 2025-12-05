@@ -72,6 +72,7 @@ jobs:
 
   build:
     name: Build
+    needs: test
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -126,3 +127,93 @@ jobs:
       with:
         name: icr-${{ matrix.arch }}
         path: icr-*
+
+  osv-scan:
+    name: OSV Scanner
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download OSV Scanner
+      run: |
+        VERSION="v2.2.2"
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64) BINARY="osv-scanner_linux_amd64" ;;
+          aarch64) BINARY="osv-scanner_linux_arm64" ;;
+          *) BINARY="osv-scanner_linux_amd64" ;;
+        esac
+        wget -q "https://github.com/google/osv-scanner/releases/download/${VERSION}/${BINARY}" -O osv-scanner
+        chmod +x osv-scanner
+        sudo mv osv-scanner /usr/local/bin/
+        osv-scanner --version
+
+    - name: Run OSV scan
+      run: |
+        osv-scanner scan --lockfile=go.mod --lockfile=go.sum --format=json --output=osv-report.json
+
+    - name: Upload OSV report
+      uses: actions/upload-artifact@v4
+      with:
+        name: osv-scanner-report
+        path: osv-report.json
+        retention-days: 30
+        if-no-files-found: warn
+
+  dependency-check:
+    name: OWASP Dependency Check
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run Dependency-Check
+      uses: dependency-check/Dependency-Check_Action@main
+      with:
+        project: "image-container-reporter"
+        path: "."
+        format: "HTML"
+        out: "reports"
+        args: >
+          --enableExperimental
+          --failOnCVSS 7
+
+    - name: Upload Dependency-Check report
+      uses: actions/upload-artifact@v4
+      with:
+        name: dependency-check-report
+        path: reports
+        retention-days: 30
+
+  sonarqube:
+    name: SonarQube Analysis
+    needs: [test, build, osv-scan, dependency-check]
+    if: ${{ github.ref == 'refs/heads/main' && secrets.SONAR_TOKEN != '' && secrets.SONAR_HOST_URL != '' }}
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install SonarQube Scanner
+      run: |
+        SCANNER_VERSION="5.0.1.3006"
+        wget -q "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SCANNER_VERSION}-linux.zip"
+        unzip -q "sonar-scanner-cli-${SCANNER_VERSION}-linux.zip"
+        mv "sonar-scanner-${SCANNER_VERSION}-linux" sonar-scanner
+        echo "$PWD/sonar-scanner/bin" >> $GITHUB_PATH
+
+    - name: Run SonarQube Scanner
+      run: |
+        sonar-scanner \
+          -Dsonar.projectKey=image-container-reporter \
+          -Dsonar.projectName=image-container-reporter \
+          -Dsonar.sources=. \
+          -Dsonar.host.url=${SONAR_HOST_URL} \
+          -Dsonar.login=${SONAR_TOKEN} \
+          -Dsonar.qualitygate.wait=true \
+          -Dsonar.qualitygate.timeout=300
