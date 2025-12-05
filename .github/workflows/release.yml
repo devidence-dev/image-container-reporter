@@ -53,9 +53,10 @@ jobs:
 
     - name: Build binaries
       run: |
-        # Build matrix for target platforms (prioritizing ARM64)
+        # Build matrix for target platforms (ARM64 and AMD64)
         platforms=(
           "linux/arm64"
+          "linux/amd64"
         )
 
         for platform in "${platforms[@]}"; do
@@ -88,14 +89,26 @@ jobs:
 
           ### Downloads
           - **Linux ARM64**: `icr-linux-arm64` + `icr-linux-arm64.sha256`
+          - **Linux AMD64**: `icr-linux-amd64` + `icr-linux-amd64.sha256`
 
           ### Installation
+
+          **For ARM64 (Raspberry Pi, Apple Silicon, ARM servers):**
           ```bash
           wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-arm64
           wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-arm64.sha256
           sha256sum -c icr-linux-arm64.sha256
           chmod +x icr-linux-arm64
           sudo mv icr-linux-arm64 /usr/local/bin/icr
+          ```
+
+          **For AMD64 (Standard x86-64 servers):**
+          ```bash
+          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-amd64
+          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-amd64.sha256
+          sha256sum -c icr-linux-amd64.sha256
+          chmod +x icr-linux-amd64
+          sudo mv icr-linux-amd64 /usr/local/bin/icr
           ```
 
           For more information, see: https://github.com/${{ github.repository }}/blob/main/README.md
