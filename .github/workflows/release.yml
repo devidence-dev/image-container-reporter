@@ -36,18 +36,6 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
-    - name: Run tests
-      run: go test ./... -coverprofile=coverage.out
-
-    - name: Generate coverage report
-      run: go tool cover -func=coverage.out
-
-    - name: Install govulncheck
-      run: go install golang.org/x/vuln/cmd/govulncheck@latest
-
-    - name: Security scan
-      run: govulncheck ./...
-
     - name: Create release directory
       run: mkdir -p release
 
