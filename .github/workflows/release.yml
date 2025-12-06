@@ -69,6 +69,7 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
+        overwrite: true
         files: release/*
         body: |
           ## Image Container Reporter (ICR) ${{ github.ref_name }}
