@@ -168,9 +168,12 @@ func IsPreRelease(version string) bool {
 	return false
 }
 
-// IsSemanticVersion checks if a version string looks like semantic versioning
+// IsSemanticVersion checks if a version string looks like semantic versioning.
+// Accepts full semver (major.minor.patch) and also Docker-style two-part or single-number tags
+// (e.g., "18.1", "19") so they are treated as numeric and not as names like "trixie".
 func IsSemanticVersion(version string) bool {
-	return semverRegex.MatchString(NormalizeVersion(version))
+	n := NormalizeVersion(version)
+	return semverRegex.MatchString(n) || twoPartSemverRegex.MatchString(n) || onePartSemverRegex.MatchString(n)
 }
 
 // FilterPreReleases filters out pre-release versions from a slice of tags
@@ -221,7 +224,7 @@ func sortSemanticVersions(versions []string) []string {
 		return versions
 	}
 
-	// Convert to semver objects for sorting
+	// Convert to semver objects for sorting (using flexible parsing)
 	type versionPair struct {
 		original string
 		semver   *semver.Version
@@ -229,7 +232,7 @@ func sortSemanticVersions(versions []string) []string {
 
 	var pairs []versionPair
 	for _, version := range versions {
-		if sv, err := semver.NewVersion(NormalizeVersion(version)); err == nil {
+		if sv, err := parseFlexibleSemver(version); err == nil {
 			pairs = append(pairs, versionPair{original: version, semver: sv})
 		}
 	}

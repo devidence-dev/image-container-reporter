@@ -140,9 +140,10 @@ func TestIsSemanticVersion(t *testing.T) {
 		{"semver with build metadata", "1.0.0+build.1", true},
 		{"non-semantic tag", "latest", false},
 		{"non-semantic tag", "stable", false},
-		{"partial version", "1.0", false},
-		{"single number", "1", false},
+		{"two-part version", "1.0", true},
+		{"single number", "1", true},
 		{"docker tag with suffix", "1.0.0-alpine", true},
+		{"two-part postgres style", "18.1", true},
 	}
 
 	for _, tt := range tests {
@@ -207,6 +208,11 @@ func TestSortVersions(t *testing.T) {
 			name:     "mixed versions",
 			input:    []string{"1.0.0", "latest", "1.1.0", "stable"},
 			expected: []string{"1.1.0", "1.0.0", "stable", "latest"},
+		},
+		{
+			name:     "two-part numeric sorted over names",
+			input:    []string{"trixie", "19", "18.1", "latest"},
+			expected: []string{"19", "18.1", "trixie", "latest"},
 		},
 		{
 			name:     "versions with v prefix",
