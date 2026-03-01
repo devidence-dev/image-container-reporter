@@ -1,6 +1,6 @@
 module github.com/user/docker-image-reporter
 
-go 1.25
+go 1.26
 
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
