@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
-	"html"
 	"html/template"
 	"strings"
 
@@ -43,6 +42,7 @@ type UpdateItem struct {
 
 // templateData estructura los datos para el template
 type templateData struct {
+	Styles             template.CSS
 	ProjectName        string
 	ScanTimestamp      string
 	TotalServices      int
@@ -68,11 +68,7 @@ func (f HTMLFormatter) Format(result types.ScanResult) (string, error) {
 		return "", fmt.Errorf("error loading template: %w", err)
 	}
 
-	// Reemplazar placeholder de CSS en el template antes de parsear
-	// #nosec G203 - cssBytes proviene de archivos embebidos internos, no de entrada del usuario
-	templateContent := strings.ReplaceAll(string(tmplBytes), "{{.Styles}}", string(cssBytes))
-
-	tmpl, err := template.New("report").Parse(templateContent)
+	tmpl, err := template.New("report").Parse(string(tmplBytes))
 	if err != nil {
 		return "", fmt.Errorf("error parsing template: %w", err)
 	}
@@ -117,17 +113,18 @@ func (f HTMLFormatter) Format(result types.ScanResult) (string, error) {
 		}
 
 		updateItems = append(updateItems, UpdateItem{
-			ServiceName:  html.EscapeString(update.ServiceName),
-			CurrentImage: html.EscapeString(update.CurrentImage.String()),
-			LatestImage:  html.EscapeString(update.LatestImage.String()),
-			UpdateType:   html.EscapeString(update.UpdateType.String()),
+			ServiceName:  update.ServiceName,
+			CurrentImage: update.CurrentImage.String(),
+			LatestImage:  update.LatestImage.String(),
+			UpdateType:   update.UpdateType.String(),
 			BadgeClass:   badgeClass,
 		})
 	}
 
 	// Preparar datos del template
 	data := templateData{
-		ProjectName:        html.EscapeString(result.ProjectName),
+		Styles:        template.CSS(cssBytes),
+		ProjectName:   result.ProjectName,
 		ScanTimestamp:      result.ScanTimestamp.Format("Jan 2, 2006 15:04 MST"),
 		TotalServices:      result.TotalServicesFound,
 		UpdatesCount:       len(result.UpdatesAvailable),
