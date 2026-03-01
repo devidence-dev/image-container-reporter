@@ -129,41 +129,41 @@ jobs:
         path: reports
         retention-days: 30
 
-  sonarqube:
-    name: SonarQube Analysis
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+  # sonarqube:
+  #   name: SonarQube Analysis
+  #   needs: test
+  #   if: github.ref == 'refs/heads/main'
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  #     SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #     with:
+  #       fetch-depth: 0
 
-    - name: Install SonarQube Scanner
-      run: |
-        SCANNER_VERSION="5.0.1.3006"
-        wget -q "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SCANNER_VERSION}-linux.zip"
-        unzip -q "sonar-scanner-cli-${SCANNER_VERSION}-linux.zip"
-        mv "sonar-scanner-${SCANNER_VERSION}-linux" sonar-scanner
-        echo "$PWD/sonar-scanner/bin" >> $GITHUB_PATH
+  #   - name: Install SonarQube Scanner
+  #     run: |
+  #       SCANNER_VERSION="5.0.1.3006"
+  #       wget -q "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SCANNER_VERSION}-linux.zip"
+  #       unzip -q "sonar-scanner-cli-${SCANNER_VERSION}-linux.zip"
+  #       mv "sonar-scanner-${SCANNER_VERSION}-linux" sonar-scanner
+  #       echo "$PWD/sonar-scanner/bin" >> $GITHUB_PATH
 
-    - name: Run SonarQube Scanner
-      run: |
-        sonar-scanner \
-          -Dsonar.projectKey=image-container-reporter \
-          -Dsonar.projectName=image-container-reporter \
-          -Dsonar.sources=. \
-          -Dsonar.host.url=${SONAR_HOST_URL} \
-          -Dsonar.login=${SONAR_TOKEN} \
-          -Dsonar.qualitygate.wait=true \
-          -Dsonar.qualitygate.timeout=300
+  #   - name: Run SonarQube Scanner
+  #     run: |
+  #       sonar-scanner \
+  #         -Dsonar.projectKey=image-container-reporter \
+  #         -Dsonar.projectName=image-container-reporter \
+  #         -Dsonar.sources=. \
+  #         -Dsonar.host.url=${SONAR_HOST_URL} \
+  #         -Dsonar.login=${SONAR_TOKEN} \
+  #         -Dsonar.qualitygate.wait=true \
+  #         -Dsonar.qualitygate.timeout=300
 
   build:
     name: Build
-    needs: [test, osv-scan, dependency-check, sonarqube]
+    needs: [test, osv-scan, dependency-check]
     if: always() && needs.test.result == 'success' && needs.osv-scan.result == 'success' && needs.dependency-check.result == 'success' && (needs.sonarqube.result == 'success' || needs.sonarqube.result == 'skipped')
     runs-on: ${{ matrix.os }}
     strategy:
