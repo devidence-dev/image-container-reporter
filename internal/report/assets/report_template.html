@@ -8,13 +8,364 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
-        {
-                {
-                .Styles
+        /* Variables */
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --border-color: #30363d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent-green: #238636;
+            --accent-yellow: #d29922;
+            --accent-red: #da3633;
+            --accent-blue: #58a6ff;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+        }
+
+        .navbar-dark {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 0;
+        }
+
+        .container-fluid {
+            max-width: 1400px;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            min-height: calc(100vh - 80px);
+            padding: 1.5rem;
+        }
+
+        .metric-box {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .metric-box:hover {
+            border-color: var(--accent-blue);
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 600;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        /* Content */
+        .content-area {
+            padding: 1.5rem;
+        }
+
+        .status-badge {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .status-badge.warning {
+            border-color: var(--accent-yellow);
+            background: rgba(210, 153, 34, 0.1);
+        }
+
+        .status-badge.success {
+            border-color: var(--accent-green);
+            background: rgba(35, 134, 54, 0.1);
+        }
+
+        /* Table */
+        .table-devops {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .table-devops .table {
+            color: var(--text-primary);
+            background: transparent;
+            margin-bottom: 0;
+        }
+
+        .table-devops thead {
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table-devops th {
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 1rem;
+            border: none;
+            background: var(--bg-tertiary);
+        }
+
+        .table-devops td {
+            color: var(--text-primary);
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            vertical-align: middle;
+            background: transparent;
+            word-break: break-word;
+        }
+
+        .table-devops tbody tr {
+            background: var(--bg-secondary);
+        }
+
+        .table-devops tbody tr:hover {
+            background: var(--bg-tertiary) !important;
+        }
+
+        /* Components */
+        .service-name {
+            font-weight: 600;
+            color: var(--accent-blue);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .image-tag {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Courier New', monospace;
+            font-size: 0.85rem;
+            background: var(--bg-primary);
+            padding: 0.4rem 0.6rem;
+            border-radius: 4px;
+            color: var(--text-secondary);
+            display: inline-block;
+            word-break: break-all;
+            max-width: 100%;
+        }
+
+        .badge-type {
+            padding: 0.4rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        .badge-patch {
+            background: rgba(35, 134, 54, 0.2);
+            color: #3fb950;
+            border: 1px solid rgba(35, 134, 54, 0.3);
+        }
+
+        .badge-minor {
+            background: rgba(210, 153, 34, 0.2);
+            color: #d29922;
+            border: 1px solid rgba(210, 153, 34, 0.3);
+        }
+
+        .badge-major {
+            background: rgba(218, 54, 51, 0.2);
+            color: #f85149;
+            border: 1px solid rgba(218, 54, 51, 0.3);
+        }
+
+        .badge-unknown {
+            background: rgba(139, 148, 158, 0.2);
+            color: #8b949e;
+            border: 1px solid rgba(139, 148, 158, 0.3);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .section-header h5 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        .theme-toggle {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-primary);
+        }
+
+        /* Responsive - Bootstrap maneja el grid con col-md-4/col-lg-3 en el HTML.
+           Aqui solo ajustamos densidad (padding, font-size) por breakpoint.
+           iPad landscape ~1180px usa col-lg-3 (sidebar 25%).
+           iPad portrait  ~820px  usa col-md-4 (sidebar 33%).
+           Menos de 768px Bootstrap apila automaticamente. */
+        @media (min-width: 992px) and (max-width: 1199.98px) {
+            .metric-value {
+                font-size: 1.75rem;
+            }
+
+            .table-devops th,
+            .table-devops td {
+                padding: 0.85rem;
+                font-size: 0.875rem;
             }
         }
 
-        /* ── Copy button ─────────────────────────────────────────────────── */
+        @media (min-width: 768px) and (max-width: 991.98px) {
+
+            .sidebar,
+            .content-area {
+                padding: 1.25rem;
+            }
+
+            .metric-value {
+                font-size: 1.6rem;
+            }
+
+            .metric-box {
+                padding: 0.85rem;
+            }
+
+            .table-devops th,
+            .table-devops td {
+                padding: 0.75rem 0.9rem;
+                font-size: 0.875rem;
+            }
+
+            .image-tag {
+                font-size: 0.8rem;
+            }
+        }
+
+        @media (max-width: 767.98px) {
+            .sidebar {
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                min-height: auto;
+                padding: 1.25rem;
+            }
+
+            .content-area {
+                padding: 1rem;
+            }
+
+            .metric-box {
+                padding: 0.75rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .metric-value {
+                font-size: 1.25rem;
+            }
+
+            .metric-label {
+                font-size: 0.75rem;
+            }
+
+            .status-badge {
+                padding: 0.5rem 0.75rem;
+                font-size: 0.9rem;
+            }
+
+            .table-devops {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .table-devops .table {
+                min-width: 520px;
+            }
+
+            .table-devops th,
+            .table-devops td {
+                padding: 0.5rem 0.65rem;
+                font-size: 0.78rem;
+            }
+
+            .image-tag {
+                font-size: 0.7rem;
+                padding: 0.25rem 0.4rem;
+            }
+
+            .badge-type {
+                font-size: 0.65rem;
+                padding: 0.25rem 0.45rem;
+            }
+
+            .section-header h5 {
+                font-size: 1rem;
+            }
+        }
+
+        @media (max-width: 479.98px) {
+            body {
+                font-size: 0.9rem;
+            }
+
+            .navbar-brand {
+                font-size: 0.9rem;
+            }
+
+            .metric-value {
+                font-size: 1rem;
+            }
+
+            .table-devops .table {
+                min-width: 100%;
+            }
+
+            .table-devops th,
+            .table-devops td {
+                padding: 0.35rem 0.4rem;
+                font-size: 0.65rem;
+            }
+
+            .image-tag {
+                font-size: 0.6rem;
+                padding: 0.2rem 0.3rem;
+            }
+
+            .service-name {
+                gap: 0.25rem;
+            }
+        }
+
+        /* Copy button */
         .copy-btn {
             background: none;
             border: none;
@@ -24,7 +375,6 @@
             font-size: 0.85rem;
             line-height: 1;
             vertical-align: middle;
-            opacity: 0.5;
             transition: opacity 0.15s ease, color 0.2s ease, transform 0.15s ease;
         }
 
@@ -32,20 +382,17 @@
             opacity: 1;
         }
 
-        /* Estado: recién copiado */
         .copy-btn.copied-just {
             color: var(--accent-green, #4ade80);
             opacity: 1;
             transform: scale(1.2);
         }
 
-        /* Estado: copiado anteriormente */
         .copy-btn.copied-prev {
             color: var(--accent-green, #4ade80);
             opacity: 0.65;
         }
 
-        /* Celda de tag: visible siempre (tenue), más brillante en hover de fila */
         tr:not(:hover) .copy-btn:not(.copied-just):not(.copied-prev) {
             opacity: 0.25;
         }
@@ -191,7 +538,6 @@
 
     <script>
         (() => {
-            // Mapa para recordar qué botones ya fueron usados en esta sesión
             const copiedBefore = new WeakSet();
 
             document.querySelectorAll('.copy-btn').forEach(btn => {
@@ -202,7 +548,6 @@
                     try {
                         await navigator.clipboard.writeText(text);
                     } catch {
-                        // Fallback para entornos sin clipboard API (e.g. http)
                         const ta = document.createElement('textarea');
                         ta.value = text;
                         ta.style.position = 'fixed';
@@ -215,13 +560,11 @@
 
                     const icon = btn.querySelector('i');
 
-                    // ── Estado 2: recién copiado ──────────────────────────────
                     btn.classList.remove('copied-prev');
                     btn.classList.add('copied-just');
                     icon.className = 'bi bi-clipboard-check-fill';
                     btn.title = 'Copied!';
 
-                    // Después de 2s → estado 3: copiado anteriormente
                     setTimeout(() => {
                         btn.classList.remove('copied-just');
                         btn.classList.add('copied-prev');

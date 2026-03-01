@@ -10,7 +10,7 @@ import (
 	"github.com/user/docker-image-reporter/pkg/types"
 )
 
-//go:embed assets/report_template.html assets/styles.css
+//go:embed assets/report_template.html
 var reportAssets embed.FS
 
 // capitalizeFirst capitaliza la primera letra de una cadena
@@ -42,7 +42,6 @@ type UpdateItem struct {
 
 // templateData estructura los datos para el template
 type templateData struct {
-	Styles             template.CSS
 	ProjectName        string
 	ScanTimestamp      string
 	TotalServices      int
@@ -56,13 +55,8 @@ type templateData struct {
 
 // Format convierte un ScanResult en un string HTML formateado
 func (f HTMLFormatter) Format(result types.ScanResult) (string, error) {
-	// Cargar CSS
-	cssBytes, err := reportAssets.ReadFile("assets/styles.css")
-	if err != nil {
-		return "", fmt.Errorf("error loading styles: %w", err)
-	}
-
-	// Cargar template
+	// Cargar y parsear el template. El CSS esta inlined directamente en
+	// report_template.html — no se necesita inyeccion ni placeholders.
 	tmplBytes, err := reportAssets.ReadFile("assets/report_template.html")
 	if err != nil {
 		return "", fmt.Errorf("error loading template: %w", err)
@@ -123,10 +117,6 @@ func (f HTMLFormatter) Format(result types.ScanResult) (string, error) {
 
 	// Preparar datos del template
 	data := templateData{
-		// #nosec G203 -- cssBytes proviene de un archivo embebido en el binario (embed.FS),
-		// no de entrada del usuario. template.CSS es correcto aquí para evitar que
-		// html/template escape el CSS como texto plano.
-		Styles: template.CSS(cssBytes), //nolint:gosec
 		ProjectName:   result.ProjectName,
 		ScanTimestamp:      result.ScanTimestamp.Format("Jan 2, 2006 15:04 MST"),
 		TotalServices:      result.TotalServicesFound,
