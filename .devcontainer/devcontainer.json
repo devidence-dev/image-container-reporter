@@ -1,24 +1,55 @@
 {
     "name": "Docker Image Reporter (Go)",
-    "build": {
-        "dockerfile": "Dockerfile",
-        "context": ".."
-    },
+    "image": "mcr.microsoft.com/devcontainers/go:dev-1.26-trixie",
+
+    // ── Bind mounts ──────────────────────────────────────────────────────────
+    // 1. Workspace: monta el directorio del proyecto en /workspace
+    // 2. Git config: reenvía la configuración git del host para que los commits
+    //    conserven el nombre/email del usuario y funcionen los credential helpers.
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+    "workspaceFolder": "/workspace",
+    "mounts": [
+        // Git config del host (read-only) → credenciales y firma de commits
+        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached,readonly",
+        // SSH keys del host (read-only) → para push/pull por SSH sin reconfigurar
+        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly"
+    ],
+
+    // ── Features adicionales ──────────────────────────────────────────────────
+    // La imagen base ya trae Go 1.26 + git + herramientas devcontainer estándar.
+    // Agregamos docker-outside-of-docker para poder hacer `docker` desde el contenedor
+    // usando el socket del host (útil para testear el scan --docker-daemon).
     "features": {
-        
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
     },
+
+    // ── Variables de entorno ──────────────────────────────────────────────────
+    "remoteEnv": {
+        // Reenvía el SSH_AUTH_SOCK del host si el usuario usa ssh-agent
+        "SSH_AUTH_SOCK": "${localEnv:SSH_AUTH_SOCK}"
+    },
+
+    // ── Extensiones VS Code ───────────────────────────────────────────────────
     "customizations": {
         "vscode": {
             "extensions": [
                 "golang.go",
                 "ms-vscode.vscode-docker",
-                "ms-vscode.test-adapter-converter"
-            ]
+                "ms-vscode.test-adapter-converter",
+                "eamodio.gitlens"
+            ],
+            "settings": {
+                "go.toolsManagement.checkForUpdates": "local",
+                "go.useLanguageServer": true,
+                "[go]": {
+                    "editor.formatOnSave": true,
+                    "editor.defaultFormatter": "golang.go"
+                }
+            }
         }
     },
-    // Ensure the host workspace folder is bind-mounted into the container at /workspace
-    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+
+    // ── Ciclo de vida ─────────────────────────────────────────────────────────
     "postCreateCommand": "go mod tidy && go mod download",
-    "remoteUser": "vscode",
-    "workspaceFolder": "/workspace"
+    "remoteUser": "vscode"
 }

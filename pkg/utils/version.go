@@ -17,12 +17,21 @@ var (
 		"pre", "preview", "unstable",
 	}
 
-	// Regex to detect if a version looks semantic
+	// Regex to detect if a version looks semantic: must start with digits.dots pattern
+	// Only match if the ENTIRE start is numeric (no leading words/letters before version digits)
 	semverRegex = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)`)
 
 	// Regex helpers to allow padding numeric Docker tags like "18.1" or "19"
 	twoPartSemverRegex = regexp.MustCompile(`^v?\d+\.\d+$`)
 	onePartSemverRegex = regexp.MustCompile(`^v?\d+$`)
+
+	// nonSemverPrefixRegex detects tags that start with text/words before numbers
+	// e.g. "smbd-wsdd2-a3.23.3", "synology-port-issue", "lt2-5.1.4"
+	nonSemverPrefixRegex = regexp.MustCompile(`^[a-zA-Z]`)
+
+	// numberFollowedByNonVersionText detects tags like "28-synology-port-issue"
+	// where a number is followed by non-numeric text (not a valid semver suffix like -alpine)
+	numberFollowedByText = regexp.MustCompile(`^\d+[-_][a-zA-Z]{2,}`)
 )
 
 // CompareVersions compares two version strings and returns the update type
@@ -92,7 +101,7 @@ func NormalizeVersion(version string) string {
 	// Remove common suffixes (including numeric variants like -alpine3.18)
 	if suffix := ExtractVersionSuffix(normalized); suffix != "" {
 		// Remove the suffix plus any trailing digits/dots/hyphens
-		re := regexp.MustCompile("(?i)" + regexp.QuoteMeta(suffix) + `[0-9\.\-]*$`)
+		re := regexp.MustCompile("(?i)" + regexp.QuoteMeta(suffix) + `[0-9\.]*$`)
 		normalized = re.ReplaceAllString(normalized, "")
 	}
 
@@ -101,7 +110,25 @@ func NormalizeVersion(version string) string {
 
 // parseFlexibleSemver parses Docker tags that may omit patch or minor parts by padding them.
 // Examples: "18.1" -> "18.1.0", "19" -> "19.0.0".
+// IMPORTANT: Tags that start with text (e.g. "smbd-wsdd2-") or have word text
+// after the leading number (e.g. "28-synology-port-issue") are rejected.
 func parseFlexibleSemver(version string) (*semver.Version, error) {
+	// Reject tags that clearly start with alphabetic text (non-semver prefix)
+	// e.g. "smbd-wsdd2-a3.23.3", "lt2-5.1.4", "synology-issue"
+	if nonSemverPrefixRegex.MatchString(version) && !strings.HasPrefix(version, "v") {
+		return nil, fmt.Errorf("version starts with non-numeric prefix: %s", version)
+	}
+
+	// Reject tags that are a number followed by meaningful text words
+	// e.g. "28-synology-port-issue", "5-branch-name"
+	// This avoids treating issue/branch tags as semver major versions
+	if numberFollowedByText.MatchString(version) {
+		// Only allow known OS/variant suffixes like "-alpine", "-slim", "-ubuntu", etc.
+		if ExtractVersionSuffix(version) == "" {
+			return nil, fmt.Errorf("version looks like a number followed by non-version text: %s", version)
+		}
+	}
+
 	normalized := NormalizeVersion(version)
 
 	if sv, err := semver.NewVersion(normalized); err == nil {
@@ -171,7 +198,18 @@ func IsPreRelease(version string) bool {
 // IsSemanticVersion checks if a version string looks like semantic versioning.
 // Accepts full semver (major.minor.patch) and also Docker-style two-part or single-number tags
 // (e.g., "18.1", "19") so they are treated as numeric and not as names like "trixie".
+// Tags like "28-synology-port-issue" or "smbd-wsdd2-a3.23.3" are NOT considered semantic.
 func IsSemanticVersion(version string) bool {
+	// Reject tags that start with letters (not 'v')
+	if nonSemverPrefixRegex.MatchString(version) && !strings.HasPrefix(version, "v") {
+		return false
+	}
+
+	// Reject number-followed-by-text tags (e.g. "28-synology-port-issue")
+	if numberFollowedByText.MatchString(version) && ExtractVersionSuffix(version) == "" {
+		return false
+	}
+
 	n := NormalizeVersion(version)
 	return semverRegex.MatchString(n) || twoPartSemverRegex.MatchString(n) || onePartSemverRegex.MatchString(n)
 }
@@ -181,6 +219,70 @@ func FilterPreReleases(tags []string) []string {
 	var filtered []string
 	for _, tag := range tags {
 		if !IsPreRelease(tag) {
+			filtered = append(filtered, tag)
+		}
+	}
+	return filtered
+}
+
+// FilterNonSemver filters out tags that don't follow semver from a slice of tags.
+// This is used when the current image uses a semver tag, to avoid comparing against
+// non-semver tags like branch names, issue tags, or build-date tags.
+func FilterNonSemver(tags []string) []string {
+	var filtered []string
+	for _, tag := range tags {
+		if IsSemanticVersion(tag) {
+			filtered = append(filtered, tag)
+		}
+	}
+	return filtered
+}
+
+// IsDateBasedTag checks if a tag looks like a date-based build identifier
+// e.g. "20260224.0.42919" (YYYYMMDD.N.buildnumber)
+func IsDateBasedTag(version string) bool {
+	// Match patterns like 20260224, 20231015.0.1234, etc.
+	dateTagRegex := regexp.MustCompile(`^(19|20)\d{6}`)
+	return dateTagRegex.MatchString(version)
+}
+
+// TagPatternFamily determines the "family" or "style" of a tag so we can compare
+// apples to apples. This prevents cross-image or cross-format comparisons.
+type TagPatternFamily int
+
+const (
+	TagFamilySemver    TagPatternFamily = iota // v1.2.3, 5.1.4, 5.1.4-2
+	TagFamilyDateBased                         // 20260224.0.0, 20231015
+	TagFamilyCustom                            // anything else (branch/issue/special tags)
+)
+
+// ClassifyTagFamily determines the family of a Docker image tag.
+func ClassifyTagFamily(tag string) TagPatternFamily {
+	if IsDateBasedTag(tag) {
+		return TagFamilyDateBased
+	}
+	if IsSemanticVersion(tag) {
+		return TagFamilySemver
+	}
+	return TagFamilyCustom
+}
+
+// FilterTagsByFamily filters a list of tags to only include those in the same family
+// as the current version tag. This is the core fix for false positives:
+// - If current is semver (v5.5.4), only compare against semver tags
+// - If current is date-based, only compare against date-based tags
+// - If current is custom/unknown, skip update detection (no comparison possible)
+func FilterTagsByFamily(tags []string, currentVersion string) []string {
+	currentFamily := ClassifyTagFamily(currentVersion)
+
+	// If the current tag is a custom/unknown format, we can't reliably detect updates
+	if currentFamily == TagFamilyCustom {
+		return []string{}
+	}
+
+	var filtered []string
+	for _, tag := range tags {
+		if ClassifyTagFamily(tag) == currentFamily {
 			filtered = append(filtered, tag)
 		}
 	}
@@ -458,8 +560,9 @@ func ExtractVersionSuffix(version string) string {
 	// Prefer the longest matching base suffix (avoid accidental short matches)
 	var bestMatch string
 	for _, suffix := range suffixes {
-		// Match suffix optionally followed by digits/dots/hyphens, e.g. -alpine3.18
-		pattern := `(?i)` + regexp.QuoteMeta(suffix) + `[0-9\.\-]*$`
+		// Match suffix optionally followed by digits/dots (e.g. -alpine3.18)
+		// but NOT followed by more word characters (avoids matching "-alpine" in "-alpine-custom-thing")
+		pattern := `(?i)` + regexp.QuoteMeta(suffix) + `[0-9\.]*$`
 		if matched, _ := regexp.MatchString(pattern, lowerVersion); matched {
 			if len(suffix) > len(bestMatch) {
 				bestMatch = suffix
@@ -480,7 +583,7 @@ func FilterTagsBySuffix(tags []string, currentVersion string) []string {
 
 	var filtered []string
 	// Build a pattern that matches the base suffix plus optional numeric variant suffix
-	pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(suffix) + `[0-9\.\-]*$`)
+	pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(suffix) + `[0-9\.]*$`)
 	for _, tag := range tags {
 		if pattern.MatchString(strings.ToLower(tag)) {
 			filtered = append(filtered, tag)
@@ -499,8 +602,20 @@ func FilterTagsBySuffix(tags []string, currentVersion string) []string {
 // It finds the highest semantic version greater than the current one (after normalization). If multiple
 // original tags map to that semantic version (e.g., with and without suffix variants), it prefers a tag
 // that matches the current suffix. If none match, it returns a generic tag from that version group.
+//
+// Key improvement: tags are first filtered to the same "family" as the current version
+// (semver vs date-based vs custom) to prevent false positives from cross-family comparisons.
 func FindBestUpdateTag(currentVersion string, tags []string) string {
 	if len(tags) == 0 {
+		return ""
+	}
+
+	// Step 1: Filter tags to the same family as current version.
+	// This prevents "28-synology-port-issue" from being treated as semver 28.0.0,
+	// and "smbd-wsdd2-a3.23.3" from being compared against "a3.23.3-s4.22.6".
+	familyFilteredTags := FilterTagsByFamily(tags, currentVersion)
+	if len(familyFilteredTags) == 0 {
+		// No tags in the same family — skip update detection for this image
 		return ""
 	}
 
@@ -512,10 +627,10 @@ func FindBestUpdateTag(currentVersion string, tags []string) string {
 
 	groups := make(map[string]*group)
 
-	for _, t := range tags {
+	for _, t := range familyFilteredTags {
 		sv, err := parseFlexibleSemver(t)
 		if err != nil {
-			// skip non-semver tags
+			// skip non-semver tags (for semver family they'd be date-based or custom)
 			continue
 		}
 		key := sv.String()
@@ -530,8 +645,8 @@ func FindBestUpdateTag(currentVersion string, tags []string) string {
 	// Parse current version
 	currSv, err := parseFlexibleSemver(currentVersion)
 	if err != nil {
-		// If current is not semver, fallback to simple sort
-		sorted := SortVersions(tags)
+		// If current is not semver, fallback to simple sort within same family
+		sorted := SortVersions(familyFilteredTags)
 		if len(sorted) > 0 {
 			return sorted[0]
 		}
@@ -556,7 +671,7 @@ func FindBestUpdateTag(currentVersion string, tags []string) string {
 	// Prefer tag matching current suffix
 	suffix := ExtractVersionSuffix(currentVersion)
 	if suffix != "" {
-		pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(suffix) + `[0-9\.\-]*$`)
+		pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(suffix) + `[0-9\.]*$`)
 		for _, t := range best.tags {
 			if pattern.MatchString(strings.ToLower(t)) {
 				return t
