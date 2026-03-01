@@ -123,7 +123,10 @@ func (f HTMLFormatter) Format(result types.ScanResult) (string, error) {
 
 	// Preparar datos del template
 	data := templateData{
-		Styles:        template.CSS(cssBytes),
+		// #nosec G203 -- cssBytes proviene de un archivo embebido en el binario (embed.FS),
+		// no de entrada del usuario. template.CSS es correcto aquí para evitar que
+		// html/template escape el CSS como texto plano.
+		Styles: template.CSS(cssBytes), //nolint:gosec
 		ProjectName:   result.ProjectName,
 		ScanTimestamp:      result.ScanTimestamp.Format("Jan 2, 2006 15:04 MST"),
 		TotalServices:      result.TotalServicesFound,
