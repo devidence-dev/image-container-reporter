@@ -1,27 +1,52 @@
 name: Release
 
+# ── Triggers ──────────────────────────────────────────────────────────────────
 on:
+  # ① Automático: alguien hace push de un tag vX.Y.Z manualmente desde CLI
   push:
     tags:
       - 'v*.*.*'
 
+  # ② Manual: botón "Run workflow" en la pestaña Actions de GitHub
+  #    Permite hacer promote directamente desde la UI sin tocar la CLI.
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Cómo incrementar la versión (ignorado si se define custom_tag)"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      custom_tag:
+        description: "Tag personalizado (e.g. v1.2.3). Anula el bump automático si se define."
+        required: false
+        type: string
+      prerelease:
+        description: "Marcar como pre-release?"
+        required: false
+        default: false
+        type: boolean
+
 permissions:
-  contents: write
+  contents: write   # necesario para crear tags y GitHub Releases
 
 jobs:
   release:
     name: Create Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-arm
 
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 0   # historial completo para calcular tag anterior y generar changelog
 
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.25.5'
+        go-version-file: .go-version
 
     - name: Cache Go modules
       uses: actions/cache@v4
@@ -36,12 +61,75 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
-    - name: Create release directory
-      run: mkdir -p release
-
-    - name: Build binaries
+    # ── 1. Calcular / validar la versión ─────────────────────────────────────
+    # - Si el trigger fue push de tag → usar el tag del ref directamente.
+    # - Si el trigger fue workflow_dispatch → calcular o usar custom_tag.
+    - name: Resolve version
+      id: version
       run: |
-        # Build matrix for target platforms (ARM64 and AMD64)
+        if [ "${{ github.event_name }}" = "push" ]; then
+          # Trigger automático: el tag ya existe en el ref
+          VERSION="${GITHUB_REF#refs/tags/}"
+          echo "Triggered by tag push: $VERSION"
+        elif [ -n "${{ inputs.custom_tag }}" ]; then
+          # Tag personalizado manual
+          VERSION="${{ inputs.custom_tag }}"
+          [[ "$VERSION" != v* ]] && VERSION="v${VERSION}"
+          echo "Using custom tag: $VERSION"
+        else
+          # Auto-bump semver desde el último tag
+          LATEST=$(git tag --list 'v*' --sort=-version:refname \
+                   | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          [ -z "$LATEST" ] && LATEST="v0.0.0"
+          echo "Latest tag: $LATEST"
+
+          MAJOR=$(echo "$LATEST" | sed 's/v//' | cut -d. -f1)
+          MINOR=$(echo "$LATEST" | sed 's/v//' | cut -d. -f2)
+          PATCH=$(echo "$LATEST" | sed 's/v//' | cut -d. -f3)
+
+          case "${{ inputs.bump }}" in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH+1)) ;;
+          esac
+
+          VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "Auto-bumped (${{ inputs.bump }}): $LATEST → $VERSION"
+        fi
+
+        # Validar formato
+        if ! echo "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+          echo "ERROR: '$VERSION' no es un tag semver válido (esperado vX.Y.Z)"
+          exit 1
+        fi
+
+        # Verificar que el tag no exista ya (solo para dispatch, en push ya existe)
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if git tag --list | grep -qx "$VERSION"; then
+            echo "ERROR: El tag '$VERSION' ya existe. Usa un custom_tag diferente o espera."
+            exit 1
+          fi
+        fi
+
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "version_number=${VERSION#v}" >> "$GITHUB_OUTPUT"
+
+    # ── 2. Crear el tag Git (solo en dispatch, en push ya viene creado) ───────
+    - name: Create Git tag
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        git config user.name  "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a "$VERSION" -m "Release $VERSION"
+        git push origin "$VERSION"
+
+    # ── 3. Construir binarios para todas las plataformas ─────────────────────
+    - name: Build release binaries
+      run: |
+        VERSION="${{ steps.version.outputs.version_number }}"
+        mkdir -p release
+
         platforms=(
           "linux/arm64"
           "linux/amd64"
@@ -50,58 +138,78 @@ jobs:
         for platform in "${platforms[@]}"; do
           GOOS=${platform%/*}
           GOARCH=${platform#*/}
-          BINARY_NAME="icr-${GOOS}-${GOARCH}"
+          BINARY="icr-${GOOS}-${GOARCH}"
 
-          if [ "$GOOS" = "windows" ]; then
-            BINARY_NAME="${BINARY_NAME}.exe"
-          fi
-
-          echo "Building for $GOOS/$GOARCH"
+          echo "▶ Building $BINARY (version=$VERSION)"
           CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
-            -ldflags="-w -s -X main.version=${GITHUB_REF#refs/tags/v}" \
-            -o "release/$BINARY_NAME" \
+            -ldflags="-w -s -X main.version=${VERSION}" \
+            -o "release/${BINARY}" \
             ./main.go
 
-          # Generate SHA256 checksum
-          sha256sum "release/$BINARY_NAME" > "release/${BINARY_NAME}.sha256"
+          sha256sum "release/${BINARY}" > "release/${BINARY}.sha256"
+          echo "  ✓ $(du -sh release/${BINARY} | cut -f1)  $(cat release/${BINARY}.sha256)"
         done
 
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+    - name: Test ARM64 binary
+      run: ./release/icr-linux-arm64 --help
+
+    # ── 4. Generar release notes desde git log ────────────────────────────────
+    - name: Generate release notes
+      id: notes
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        # Buscar el tag anterior para delimitar el rango del changelog
+        PREV_TAG=$(git tag --list 'v*' --sort=-version:refname \
+                   | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+                   | grep -v "^${VERSION}$" | head -1)
+
+        if [ -n "$PREV_TAG" ]; then
+          RANGE="${PREV_TAG}..HEAD"
+          echo "Changelog range: $RANGE"
+        else
+          RANGE="HEAD"
+          echo "First release, showing all commits"
+        fi
+
+        COMMITS=$(git log $RANGE --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" --no-merges)
+        [ -z "$COMMITS" ] && COMMITS="- No changes since last release"
+
+        {
+          echo "## What's Changed"
+          echo ""
+          echo "$COMMITS"
+          echo ""
+          echo "---"
+          echo ""
+          echo "### Downloads"
+          echo "| Platform | Binary | Checksum |"
+          echo "|---|---|---|"
+          echo "| Linux ARM64 | \`icr-linux-arm64\` | \`icr-linux-arm64.sha256\` |"
+          echo "| Linux AMD64 | \`icr-linux-amd64\` | \`icr-linux-amd64.sha256\` |"
+          echo ""
+          echo "### Quick install"
+          echo "\`\`\`bash"
+          echo "# ARM64 (Raspberry Pi / Apple Silicon servers)"
+          echo "wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/icr-linux-arm64"
+          echo "chmod +x icr-linux-arm64 && sudo mv icr-linux-arm64 /usr/local/bin/icr"
+          echo ""
+          echo "# AMD64 (x86-64)"
+          echo "wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/icr-linux-amd64"
+          echo "chmod +x icr-linux-amd64 && sudo mv icr-linux-amd64 /usr/local/bin/icr"
+          echo "\`\`\`"
+          echo ""
+          echo "**Go version:** $(cat .go-version | tr -d '[:space:]')"
+        } > release_notes.md
+
+    # ── 5. Publicar el GitHub Release ─────────────────────────────────────────
+    - name: Publish GitHub Release
+      uses: softprops/action-gh-release@v2
       with:
-        overwrite: true
-        files: release/*
-        body: |
-          ## Image Container Reporter (ICR) ${{ github.ref_name }}
-
-          A powerful tool to scan docker-compose files and report available updates for Docker images from various registries.
-
-          ### Downloads
-          - **Linux ARM64**: `icr-linux-arm64` + `icr-linux-arm64.sha256`
-          - **Linux AMD64**: `icr-linux-amd64` + `icr-linux-amd64.sha256`
-
-          ### Installation
-
-          **For ARM64 (Raspberry Pi, Apple Silicon, ARM servers):**
-          ```bash
-          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-arm64
-          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-arm64.sha256
-          sha256sum -c icr-linux-arm64.sha256
-          chmod +x icr-linux-arm64
-          sudo mv icr-linux-arm64 /usr/local/bin/icr
-          ```
-
-          **For AMD64 (Standard x86-64 servers):**
-          ```bash
-          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-amd64
-          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/icr-linux-amd64.sha256
-          sha256sum -c icr-linux-amd64.sha256
-          chmod +x icr-linux-amd64
-          sudo mv icr-linux-amd64 /usr/local/bin/icr
-          ```
-
-          For more information, see: https://github.com/${{ github.repository }}/blob/main/README.md
-        draft: false
-        prerelease: false
+        tag_name:   ${{ steps.version.outputs.version }}
+        name:       "Release ${{ steps.version.outputs.version }}"
+        body_path:  release_notes.md
+        prerelease: ${{ inputs.prerelease || false }}
+        files:      release/*
+        draft:      false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
