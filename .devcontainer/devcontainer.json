@@ -1,7 +1,6 @@
 {
     "name": "Docker Image Reporter (Go)",
     "image": "mcr.microsoft.com/devcontainers/go:dev-1.26-trixie",
-
     // ── Bind mounts ──────────────────────────────────────────────────────────
     // 1. Workspace: monta el directorio del proyecto en /workspace
     // 2. Git config: reenvía la configuración git del host para que los commits
@@ -14,29 +13,29 @@
         // SSH keys del host (read-only) → para push/pull por SSH sin reconfigurar
         "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly"
     ],
-
     // ── Features adicionales ──────────────────────────────────────────────────
     // La imagen base ya trae Go 1.26 + git + herramientas devcontainer estándar.
     // Agregamos docker-outside-of-docker para poder hacer `docker` desde el contenedor
     // usando el socket del host (útil para testear el scan --docker-daemon).
     "features": {
-        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+        // moby:false es requerido en Debian Trixie — moby-cli fue removido de esa distro.
+        // Usa el Docker CLI oficial en su lugar.
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+            "moby": false
+        }
     },
-
     // ── Variables de entorno ──────────────────────────────────────────────────
     "remoteEnv": {
         // Reenvía el SSH_AUTH_SOCK del host si el usuario usa ssh-agent
         "SSH_AUTH_SOCK": "${localEnv:SSH_AUTH_SOCK}"
     },
-
     // ── Extensiones VS Code ───────────────────────────────────────────────────
     "customizations": {
         "vscode": {
             "extensions": [
                 "golang.go",
                 "ms-vscode.vscode-docker",
-                "ms-vscode.test-adapter-converter",
-                "eamodio.gitlens"
+                "ms-vscode.test-adapter-converter"
             ],
             "settings": {
                 "go.toolsManagement.checkForUpdates": "local",
@@ -48,8 +47,9 @@
             }
         }
     },
-
     // ── Ciclo de vida ─────────────────────────────────────────────────────────
-    "postCreateCommand": "go mod tidy && go mod download",
+    // govulncheck es la única herramienta del Dockerfile original que NO incluye la imagen base.
+    // golangci-lint y staticcheck (honnef.co/go/tools) ya vienen preinstalados.
+    "postCreateCommand": "go mod tidy && go mod download && go install golang.org/x/vuln/cmd/govulncheck@latest",
     "remoteUser": "vscode"
 }

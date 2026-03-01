@@ -32,6 +32,12 @@ var (
 	// numberFollowedByNonVersionText detects tags like "28-synology-port-issue"
 	// where a number is followed by non-numeric text (not a valid semver suffix like -alpine)
 	numberFollowedByText = regexp.MustCompile(`^\d+[-_][a-zA-Z]{2,}`)
+
+	// buildVariantRegex extracts a named build variant from a Docker tag.
+	// Matches the first alphabetic word that appears after the version number and a separator.
+	// e.g. "5.1.4-lt2-2" -> "lt2", "18.1-custom-3" -> "custom"
+	// Does NOT match purely-numeric suffixes like "5.1.4-2".
+	buildVariantRegex = regexp.MustCompile(`^v?\d+(?:\.\d+)*[-_]([a-zA-Z][a-zA-Z0-9]*)`)
 )
 
 // CompareVersions compares two version strings and returns the update type
@@ -287,6 +293,23 @@ func FilterTagsByFamily(tags []string, currentVersion string) []string {
 		}
 	}
 	return filtered
+}
+
+// ExtractDockerBuildVariant returns the named build variant embedded in a Docker tag.
+// For a tag like "5.1.4-lt2-2", it returns "lt2" (the libtorrent2 variant).
+// For tags like "5.1.4-2", "5.1.4", or "v5.5.4", it returns "" (no named variant).
+// Tags with known OS suffixes (alpine, slim, …) are excluded from variant extraction
+// because those are already handled by FilterTagsBySuffix.
+func ExtractDockerBuildVariant(tag string) string {
+	// OS/environment suffixes are handled elsewhere; don't treat them as build variants.
+	if ExtractVersionSuffix(tag) != "" {
+		return ""
+	}
+	m := buildVariantRegex.FindStringSubmatch(tag)
+	if m == nil {
+		return ""
+	}
+	return strings.ToLower(m[1])
 }
 
 // SortVersions sorts a slice of version strings in descending order (newest first)
@@ -617,6 +640,20 @@ func FindBestUpdateTag(currentVersion string, tags []string) string {
 	if len(familyFilteredTags) == 0 {
 		// No tags in the same family — skip update detection for this image
 		return ""
+	}
+
+	// Step 2: Filter tags to the same named build variant as the current version.
+	// This prevents "5.1.4-lt2-2" (libtorrent2 variant) from being suggested as
+	// an update for "5.1.4-2" (no named variant), and vice versa.
+	currentVariant := ExtractDockerBuildVariant(currentVersion)
+	var variantFilteredTags []string
+	for _, t := range familyFilteredTags {
+		if ExtractDockerBuildVariant(t) == currentVariant {
+			variantFilteredTags = append(variantFilteredTags, t)
+		}
+	}
+	if len(variantFilteredTags) > 0 {
+		familyFilteredTags = variantFilteredTags
 	}
 
 	// Build mapping from normalized semver string to original tags

@@ -8,7 +8,39 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         {{.Styles}}
-    </style>
+
+        /* ── Copy button ─────────────────────────────────────────────────── */
+        .copy-btn {
+            background: none;
+            border: none;
+            padding: 0 0 0 6px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            line-height: 1;
+            vertical-align: middle;
+            opacity: 0.5;
+            transition: opacity 0.15s ease, color 0.2s ease, transform 0.15s ease;
+        }
+        .copy-btn:hover {
+            opacity: 1;
+        }
+        /* Estado: recién copiado */
+        .copy-btn.copied-just {
+            color: var(--accent-green, #4ade80);
+            opacity: 1;
+            transform: scale(1.2);
+        }
+        /* Estado: copiado anteriormente */
+        .copy-btn.copied-prev {
+            color: var(--accent-green, #4ade80);
+            opacity: 0.65;
+        }
+
+        /* Celda de tag: muestra el botón sólo al hacer hover sobre la fila */
+        tr:not(:hover) .copy-btn:not(.copied-just):not(.copied-prev) {
+            opacity: 0;
+        }
     </style>
 </head>
 <body>
@@ -100,9 +132,15 @@
                                 </td>
                                 <td>
                                     <code class="image-tag">{{.CurrentImage}}</code>
+                                    <button class="copy-btn" title="Copy current image" data-copy="{{.CurrentImage}}">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
                                 </td>
                                 <td>
                                     <code class="image-tag">{{.LatestImage}}</code>
+                                    <button class="copy-btn" title="Copy latest image" data-copy="{{.LatestImage}}">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
                                 </td>
                                 <td>
                                     <span class="badge-type {{.BadgeClass}}">{{.UpdateType}}</span>
@@ -132,5 +170,50 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+
+    <script>
+    (() => {
+        // Mapa para recordar qué botones ya fueron usados en esta sesión
+        const copiedBefore = new WeakSet();
+
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const text = btn.dataset.copy;
+                if (!text) return;
+
+                try {
+                    await navigator.clipboard.writeText(text);
+                } catch {
+                    // Fallback para entornos sin clipboard API (e.g. http)
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                }
+
+                const icon = btn.querySelector('i');
+
+                // ── Estado 2: recién copiado ──────────────────────────────
+                btn.classList.remove('copied-prev');
+                btn.classList.add('copied-just');
+                icon.className = 'bi bi-clipboard-check-fill';
+                btn.title = 'Copied!';
+
+                // Después de 2s → estado 3: copiado anteriormente
+                setTimeout(() => {
+                    btn.classList.remove('copied-just');
+                    btn.classList.add('copied-prev');
+                    icon.className = 'bi bi-clipboard-check';
+                    btn.title = 'Copy (copied before)';
+                    copiedBefore.add(btn);
+                }, 2000);
+            });
+        });
+    })();
+    </script>
 </body>
 </html>
