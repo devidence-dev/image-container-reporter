@@ -962,3 +962,57 @@ func TestFilterTagsByFamily(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Regression: exact tags seen in the live report on 2026-03-01
+// ---------------------------------------------------------------------------
+
+// kopia/kopia:0.22.3 must NOT suggest 20260224.0.42919 (date-based vs semver)
+func TestLiveReport_KopiaSemverVsDateBased(t *testing.T) {
+	tags := []string{
+		"0.18", "0.19", "0.20", "0.21", "0.22", "0.22.3",
+		"20260224.0.42919",
+		"latest",
+	}
+	best := FindBestUpdateTag("0.22.3", tags)
+	if best == "20260224.0.42919" {
+		t.Errorf("got %q — date-based tag must not be suggested for semver current tag", best)
+	}
+	if best != "" {
+		t.Errorf("expected no update, got %q", best)
+	}
+}
+
+// samba a3.23.3-s4.22.6-r0 must NOT suggest smbd-wsdd2-a3.23.3-s4.22.8-r0 (different prefix variant)
+func TestLiveReport_SambaVariantPrefix(t *testing.T) {
+	tags := []string{
+		"a3.23.3-s4.22.6-r0",
+		"a3.23.3-s4.22.7-r0",
+		"a3.23.3-s4.22.8-r0",
+		"smbd-wsdd2-a3.23.3-s4.22.6-r0",
+		"smbd-wsdd2-a3.23.3-s4.22.8-r0",
+		"latest",
+	}
+	best := FindBestUpdateTag("a3.23.3-s4.22.6-r0", tags)
+	if best == "smbd-wsdd2-a3.23.3-s4.22.8-r0" {
+		t.Errorf("got %q — smbd-wsdd2 variant must not be suggested for non-variant current tag", best)
+	}
+}
+
+// qbittorrent 5.1.4-2 must NOT suggest 5.1.4-lt2-2 (different named build variant)
+func TestLiveReport_QbittorrentLt2Variant(t *testing.T) {
+	tags := []string{
+		"5.1.0-1", "5.1.0-lt2-1",
+		"5.1.2-1", "5.1.2-lt2-1",
+		"5.1.4-1", "5.1.4-lt2-1",
+		"5.1.4-2", "5.1.4-lt2-2",
+		"latest",
+	}
+	best := FindBestUpdateTag("5.1.4-2", tags)
+	if best == "5.1.4-lt2-2" {
+		t.Errorf("got %q — lt2 variant must not be suggested for non-lt2 current tag", best)
+	}
+	if best != "" {
+		t.Errorf("expected no update, got %q", best)
+	}
+}
