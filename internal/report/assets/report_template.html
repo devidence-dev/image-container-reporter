@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,7 +8,11 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
-        {{.Styles}}
+        {
+                {
+                .Styles
+            }
+        }
 
         /* ── Copy button ─────────────────────────────────────────────────── */
         .copy-btn {
@@ -22,27 +27,35 @@
             opacity: 0.5;
             transition: opacity 0.15s ease, color 0.2s ease, transform 0.15s ease;
         }
+
         .copy-btn:hover {
             opacity: 1;
         }
+
         /* Estado: recién copiado */
         .copy-btn.copied-just {
             color: var(--accent-green, #4ade80);
             opacity: 1;
             transform: scale(1.2);
         }
+
         /* Estado: copiado anteriormente */
         .copy-btn.copied-prev {
             color: var(--accent-green, #4ade80);
             opacity: 0.65;
         }
 
-        /* Celda de tag: muestra el botón sólo al hacer hover sobre la fila */
+        /* Celda de tag: visible siempre (tenue), más brillante en hover de fila */
         tr:not(:hover) .copy-btn:not(.copied-just):not(.copied-prev) {
-            opacity: 0;
+            opacity: 0.25;
+        }
+
+        tr:hover .copy-btn:not(.copied-just):not(.copied-prev) {
+            opacity: 0.6;
         }
     </style>
 </head>
+
 <body>
     <nav class="navbar navbar-dark">
         <div class="container-fluid">
@@ -57,9 +70,10 @@
 
     <div class="container-fluid">
         <div class="row g-0">
-            <div class="col-lg-3 sidebar">
+            <div class="col-md-4 col-lg-3 sidebar">
                 <div class="mb-4">
-                    <h6 class="text-uppercase" style="color: var(--text-secondary); font-size: 0.75rem; letter-spacing: 1px;">Project Info</h6>
+                    <h6 class="text-uppercase"
+                        style="color: var(--text-secondary); font-size: 0.75rem; letter-spacing: 1px;">Project Info</h6>
                     <p class="mb-1"><strong>{{.ProjectName}}</strong></p>
                     <p class="mb-0" style="color: var(--text-secondary); font-size: 0.85rem;">
                         <i class="bi bi-clock me-1"></i>{{.ScanTimestamp}}
@@ -82,7 +96,8 @@
                 </div>
 
                 <div class="mt-4 pt-3" style="border-top: 1px solid var(--border-color);">
-                    <h6 class="text-uppercase mb-3" style="color: var(--text-secondary); font-size: 0.75rem;">Update Distribution</h6>
+                    <h6 class="text-uppercase mb-3" style="color: var(--text-secondary); font-size: 0.75rem;">Update
+                        Distribution</h6>
                     {{range .UpdateDistribution}}
                     <div class="d-flex justify-content-between mb-2">
                         <span style="color: var(--text-secondary); font-size: 0.85rem;">{{.Type}}</span>
@@ -92,7 +107,7 @@
                 </div>
             </div>
 
-            <div class="col-lg-9 content-area">
+            <div class="col-md-8 col-lg-9 content-area">
                 {{if .HasUpdates}}
                 <div class="status-badge warning">
                     <i class="bi bi-exclamation-triangle-fill" style="color: var(--accent-yellow);"></i>
@@ -157,7 +172,8 @@
                     <i class="bi bi-exclamation-triangle" style="color: var(--accent-red);"></i>
                     <h5>Errors</h5>
                 </div>
-                <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
+                <div
+                    style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
                     <ul style="margin-bottom: 0; color: var(--accent-red);">
                         {{range .Errors}}
                         <li>{{.}}</li>
@@ -169,51 +185,54 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+        crossorigin="anonymous"></script>
 
     <script>
-    (() => {
-        // Mapa para recordar qué botones ya fueron usados en esta sesión
-        const copiedBefore = new WeakSet();
+        (() => {
+            // Mapa para recordar qué botones ya fueron usados en esta sesión
+            const copiedBefore = new WeakSet();
 
-        document.querySelectorAll('.copy-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const text = btn.dataset.copy;
-                if (!text) return;
+            document.querySelectorAll('.copy-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const text = btn.dataset.copy;
+                    if (!text) return;
 
-                try {
-                    await navigator.clipboard.writeText(text);
-                } catch {
-                    // Fallback para entornos sin clipboard API (e.g. http)
-                    const ta = document.createElement('textarea');
-                    ta.value = text;
-                    ta.style.position = 'fixed';
-                    ta.style.opacity = '0';
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(ta);
-                }
+                    try {
+                        await navigator.clipboard.writeText(text);
+                    } catch {
+                        // Fallback para entornos sin clipboard API (e.g. http)
+                        const ta = document.createElement('textarea');
+                        ta.value = text;
+                        ta.style.position = 'fixed';
+                        ta.style.opacity = '0';
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                    }
 
-                const icon = btn.querySelector('i');
+                    const icon = btn.querySelector('i');
 
-                // ── Estado 2: recién copiado ──────────────────────────────
-                btn.classList.remove('copied-prev');
-                btn.classList.add('copied-just');
-                icon.className = 'bi bi-clipboard-check-fill';
-                btn.title = 'Copied!';
+                    // ── Estado 2: recién copiado ──────────────────────────────
+                    btn.classList.remove('copied-prev');
+                    btn.classList.add('copied-just');
+                    icon.className = 'bi bi-clipboard-check-fill';
+                    btn.title = 'Copied!';
 
-                // Después de 2s → estado 3: copiado anteriormente
-                setTimeout(() => {
-                    btn.classList.remove('copied-just');
-                    btn.classList.add('copied-prev');
-                    icon.className = 'bi bi-clipboard-check';
-                    btn.title = 'Copy (copied before)';
-                    copiedBefore.add(btn);
-                }, 2000);
+                    // Después de 2s → estado 3: copiado anteriormente
+                    setTimeout(() => {
+                        btn.classList.remove('copied-just');
+                        btn.classList.add('copied-prev');
+                        icon.className = 'bi bi-clipboard-check';
+                        btn.title = 'Copy (copied before)';
+                        copiedBefore.add(btn);
+                    }, 2000);
+                });
             });
-        });
-    })();
+        })();
     </script>
 </body>
+
 </html>
