@@ -18,7 +18,6 @@ import (
 	"github.com/user/docker-image-reporter/internal/report"
 	"github.com/user/docker-image-reporter/internal/scanner"
 	"github.com/user/docker-image-reporter/pkg/types"
-	"github.com/user/docker-image-reporter/pkg/utils"
 )
 
 // Output format constants
@@ -285,7 +284,6 @@ func outputConsole(cmd *cobra.Command, result types.ScanResult) error {
 
 // scanDockerDaemon executes a scan using Docker daemon to inspect running containers
 func scanDockerDaemon(ctx context.Context, dockerClient *docker.Client, cfg *types.Config, logger *slog.Logger) (types.ScanResult, error) {
-	// Obtener imágenes de contenedores en ejecución
 	images, err := dockerClient.ScanRunningContainers(ctx)
 	if err != nil {
 		return types.ScanResult{}, fmt.Errorf("scanning running containers: %w", err)
@@ -302,132 +300,22 @@ func scanDockerDaemon(ctx context.Context, dockerClient *docker.Client, cfg *typ
 		}, nil
 	}
 
-	// Crear servicio para verificar actualizaciones
-	registryClients := []types.RegistryClient{
-		registry.NewGenericRegistryClient(time.Duration(cfg.Registry.Timeout)*time.Second, cfg.Registry.GHCRToken),
+	// Filter out images built locally that are not available in any public registry.
+	var scannable []types.DockerImage
+	for _, img := range images {
+		if isLocalImage(img) {
+			logger.Info("Skipping local image", "service", img.ServiceName, "image", img.String())
+		} else {
+			scannable = append(scannable, img)
+		}
 	}
 
-	// Verificar actualizaciones para cada imagen
-	var updates []types.ImageUpdate
-	var upToDate []string
-	var scanErrors []string
-
-	for _, image := range images {
-		logger.Info("Checking image for updates", "service", image.ServiceName, "image", image.String())
-
-		// Skip local images that are likely not available in public registries
-		if isLocalImage(image) {
-			logger.Info("Skipping local image", "service", image.ServiceName, "image", image.String())
-			upToDate = append(upToDate, image.ServiceName)
-			continue
-		}
-
-		// Buscar cliente de registro apropiado
-		var client types.RegistryClient
-		for _, reg := range registryClients {
-			if canHandleRegistryForImage(reg, image.Registry) {
-				client = reg
-				break
-			}
-		}
-
-		if client == nil {
-			errMsg := fmt.Sprintf("no registry client available for %s (registry: %s)", image.String(), image.Registry)
-			scanErrors = append(scanErrors, errMsg)
-			logger.Warn("No registry client available", "image", image.String(), "registry", image.Registry)
-			continue
-		}
-
-		// Obtener tags más recientes del registro
-		tags, err := client.GetLatestTags(ctx, image)
-		if err != nil {
-			errMsg := fmt.Sprintf("getting tags for %s: %v", image.String(), err)
-			scanErrors = append(scanErrors, errMsg)
-			logger.Error("Failed to get tags", "image", image.String(), "error", err)
-			continue
-		}
-
-		if len(tags) == 0 {
-			errMsg := fmt.Sprintf("no tags found for %s", image.String())
-			scanErrors = append(scanErrors, errMsg)
-			logger.Warn("No tags found", "image", image.String())
-			continue
-		}
-
-		logger.Info("Retrieved tags from registry", "service", image.ServiceName, "current_tag", image.Tag, "tags_count", len(tags))
-
-		// Filtrar y ordenar tags para encontrar la versión estable más reciente
-		stableTags := utils.FilterPreReleases(tags)
-		if len(stableTags) == 0 {
-			logger.Info("No stable tags found, using all tags", "service", image.ServiceName, "image", image.String())
-			stableTags = tags
-		}
-
-		// Filtrar por sufijo si la imagen actual tiene uno (ej: -alpine, -slim)
-		suffixFilteredTags := utils.FilterTagsBySuffix(stableTags, image.Tag)
-		tagsToUse := suffixFilteredTags
-		if len(suffixFilteredTags) == 0 {
-			// No hay tags compatibles con el sufijo, usar todos los tags estables
-			logger.Info("No suffix-compatible updates found, falling back to all stable tags", "service", image.ServiceName, "image", image.String())
-			tagsToUse = stableTags
-		} else if len(suffixFilteredTags) != len(stableTags) {
-			logger.Info("Filtered tags by suffix", "service", image.ServiceName, "original_count", len(stableTags), "filtered_count", len(suffixFilteredTags))
-		}
-
-		logger.Info("Stable tags after filtering", "service", image.ServiceName, "stable_count", len(suffixFilteredTags))
-
-		// Choose the best candidate tag considering semver and suffix preference
-		latestTag := utils.FindBestUpdateTag(image.Tag, tagsToUse)
-		if latestTag == "" {
-			// Fallback to sorted pick if FindBestUpdateTag couldn't determine
-			sortedTags := utils.SortVersions(tagsToUse)
-			if len(sortedTags) > 0 {
-				latestTag = sortedTags[0]
-			}
-		}
-
-		logger.Info("Version comparison", "service", image.ServiceName, "current", image.Tag, "latest", latestTag)
-
-		// Comparar versiones
-		updateType := utils.CompareVersions(image.Tag, latestTag)
-
-		if updateType == types.UpdateTypeNone {
-			upToDate = append(upToDate, image.ServiceName)
-			logger.Info("Image is up to date", "service", image.ServiceName, "current", image.Tag, "latest", latestTag)
-			continue
-		}
-
-		// Crear registro de actualización
-		update := types.ImageUpdate{
-			ServiceName:  image.ServiceName,
-			CurrentImage: image,
-			LatestImage: types.DockerImage{
-				Registry:   image.Registry,
-				Repository: image.Repository,
-				Tag:        latestTag,
-			},
-			UpdateType: updateType,
-		}
-
-		updates = append(updates, update)
-		logger.Info("Update available",
-			"service", image.ServiceName,
-			"current", image.Tag,
-			"latest", latestTag,
-			"type", updateType)
+	result, err := createScanService(cfg).ScanImages(ctx, scannable, "docker-daemon")
+	if err != nil {
+		return types.ScanResult{}, err
 	}
-
-	result := types.ScanResult{
-		ProjectName:        "docker-daemon",
-		ScanTimestamp:      time.Now(),
-		UpdatesAvailable:   updates,
-		UpToDateServices:   upToDate,
-		Errors:             scanErrors,
-		TotalServicesFound: len(images),
-		FilesScanned:       []string{}, // No files scanned in daemon mode
-	}
-
-	return result, nil
+	result.TotalServicesFound = len(images) // include skipped locals in total
+	return *result, nil
 }
 
 // isLocalImage checks if an image appears to be built locally and not available in public registries
@@ -491,21 +379,6 @@ func isLocalImage(image types.DockerImage) bool {
 	}
 
 	return false
-}
-
-// canHandleRegistryForImage checks if a registry client can handle the given registry
-func canHandleRegistryForImage(client types.RegistryClient, registry string) bool {
-	clientName := strings.ToLower(client.Name())
-	registryName := strings.ToLower(registry)
-
-	switch clientName {
-	case "docker.io", "dockerhub":
-		return registryName == "docker.io" || registryName == ""
-	case "ghcr.io", "ghcr":
-		return registryName == "ghcr.io"
-	default:
-		return clientName == registryName
-	}
 }
 
 // reportService es un helper para manejar los formateadores
