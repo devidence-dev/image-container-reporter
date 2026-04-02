@@ -345,16 +345,12 @@ func (s *Service) getProjectName(path string) string {
 // canHandleRegistry checks if a registry client can handle the given registry
 func (s *Service) canHandleRegistry(client types.RegistryClient, registry string) bool {
 	clientName := strings.ToLower(client.Name())
-	registryName := strings.ToLower(registry)
+	registryLower := strings.ToLower(registry)
 
 	switch clientName {
-	case "docker.io", "dockerhub":
-		return registryName == "docker.io" || registryName == ""
-	case "ghcr.io", "ghcr":
-		return registryName == "ghcr.io"
 	case "generic":
-		return true // handles any registry as universal fallback
+		return true
 	default:
-		return clientName == registryName
+		return clientName == registryLower || (clientName == "docker.io" && registryLower == "")
 	}
 }
