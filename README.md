@@ -9,7 +9,7 @@ A command-line tool written in Go that scans docker-compose files to detect avai
 ## Features
 
 - 🔍 **Recursive scanning** of docker-compose.yml files
-- 🐳 **Multi-registry support** (Docker Hub, GitHub Container Registry)
+- 🐳 **Multi-registry support** for OCI-compatible registries (including Docker Hub and GHCR)
 - 📱 **Telegram notifications** with rich HTML reports
 - 📊 **Multiple output formats** (JSON, HTML)
 - 🏗️ **ARM64 optimized** for Raspberry Pi and ARM servers
@@ -79,12 +79,9 @@ telegram:
   chat_id: "123456789"
   enabled: true
 
-registries:
-  dockerhub:
-    enabled: true
-  ghcr:
-    enabled: true
-    token: "ghp_your_github_personal_access_token"
+registry:
+  ghcr_token: "ghp_your_github_personal_access_token"
+  timeout: 30
 
 scan:
   recursive: true
@@ -107,7 +104,7 @@ icr scan --notify
 icr scan /path/to/your/docker-compose.yml
 
 # Generate HTML report
-icr scan --format html --output report.html
+icr scan --output html --output-file report.html
 ```
 
 ## CLI Reference
@@ -131,11 +128,11 @@ Scan docker-compose files for image updates.
 icr scan [flags] [path]
 
 Flags:
-  -f, --format string     Output format: json, html (default "json")
-  -n, --notify           Send Telegram notification
-  -o, --output string    Output file path
-  -p, --patterns strings Comma-separated file patterns (default [docker-compose.yml,docker-compose.*.yml,compose.yml])
-  -r, --recursive        Scan directories recursively (default true)
+  -n, --notify         Send Telegram notification
+  -o, --output string  Output format (console, json, html) (default "console")
+      --output-file    Write output to file instead of stdout
+      --docker-daemon  Scan running containers via Docker daemon instead of compose files
+      --fail-on-updates Exit with non-zero code if updates are found
 ```
 
 **Docker Daemon Mode:**
@@ -162,17 +159,17 @@ icr scan --docker-daemon
 icr scan --docker-daemon --fail-on-updates
 
 # Scan specific directory with HTML report
-icr scan --format html --output scan-report.html /opt/docker
+icr scan --output html --output-file scan-report.html /opt/docker
+
+# Scan and print JSON to stdout
+icr scan --output json
 
 # Scan and notify via Telegram
 icr scan --notify
 
-# Custom file patterns (compose mode only)
-icr scan --patterns "docker-compose.yml,compose.yml" /srv
-
 # Compare running containers with compose files
-icr scan --docker-daemon --output running.json
-icr scan /opt/docker --output compose.json
+icr scan --docker-daemon --output json --output-file running.json
+icr scan /opt/docker --output json --output-file compose.json
 ```
 
 #### `config`
@@ -200,7 +197,7 @@ icr config set telegram.bot_token "your_bot_token"
 icr config get telegram.chat_id
 
 # Set GitHub token for GHCR access
-icr config set registries.ghcr.token "ghp_..."
+icr config set registry.ghcr.token "ghp_..."
 ```
 
 #### `test`
@@ -250,7 +247,7 @@ Scans `docker-compose.yml` files in the filesystem to extract image information.
 icr scan
 
 # Scan multiple project directories
-icr scan /opt/projects --recursive
+icr scan /opt/projects
 ```
 
 ### Docker Daemon Mode
@@ -301,15 +298,10 @@ telegram:
   chat_id: "123456789"
   enabled: true
 
-registries:
-  dockerhub:
-    enabled: true
-    # No authentication required for public images
-
-  ghcr:
-    enabled: true
-    token: "ghp_your_github_personal_access_token"
-    # Required for private repositories
+registry:
+  ghcr_token: "ghp_your_github_personal_access_token"
+  timeout: 30
+  # ghcr_token is optional and used for private GHCR repositories
 
 scan:
   recursive: true
@@ -318,10 +310,6 @@ scan:
     - "docker-compose.*.yml"
     - "compose.yml"
     - "docker-compose.override.yml"
-
-cache:
-  enabled: true
-  ttl: "1h"  # Cache duration for registry responses
 ```
 
 ### Environment Variables in Docker Compose
@@ -363,9 +351,6 @@ When scanning, ICR will:
 - `${VAR_NAME:-default}` - Variable with default value
 - Variables are loaded from `.env` files in the same directory as compose files
 - System environment variables take precedence over `.env` file variables
-
-## Example Docker Compose Files
-```
 
 ### Environment Variables
 
@@ -465,7 +450,7 @@ icr config set telegram.bot_token "your_token_here"
 **Solution:** For GitHub Container Registry:
 ```bash
 # Create a Personal Access Token with package read permissions
-icr config set registries.ghcr.token "ghp_..."
+icr config set registry.ghcr.token "ghp_..."
 ```
 
 #### "No docker-compose files found"
@@ -493,7 +478,7 @@ icr --verbose scan
 
 ### Logs and Reports
 
-- HTML reports are saved locally when using `--output`
+- HTML/JSON reports are saved locally when using `--output-file`
 - Telegram notifications include detailed update information
 - Use `--verbose` flag for detailed logging
 
@@ -698,7 +683,7 @@ jobs:
       - name: Create environment report
         run: |
           ./icr scan ./environments/${{ matrix.environment }} \
-            --format html \
+            --output html \
             --output-file ${{ matrix.environment }}-report.html
 
       - name: Upload results
@@ -716,7 +701,7 @@ When using ICR in GitHub Actions, configure secrets for sensitive data:
 
 ```bash
 # GitHub Repository Settings > Secrets and variables > Actions
-GHCR_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
 TELEGRAM_CHAT_ID=123456789
 GHCR_TOKEN=ghp_your_github_personal_access_token
 ```

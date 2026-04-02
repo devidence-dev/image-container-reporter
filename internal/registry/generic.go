@@ -14,7 +14,7 @@ import (
 
 // GenericRegistryClient implements RegistryClient for any OCI-compatible registry
 // using the standard OCI Distribution Specification via google/go-containerregistry.
-// It acts as a universal fallback for registries not handled by specialized clients.
+// It is the primary registry client used by the scanner service.
 type GenericRegistryClient struct {
 	timeout  time.Duration
 	keychain authn.Keychain
@@ -57,7 +57,7 @@ func (k *tokenKeychain) Resolve(res authn.Resource) (authn.Authenticator, error)
 	return k.fallback.Resolve(res)
 }
 
-// Name returns "generic" to indicate this client handles any registry as a fallback.
+// Name returns "generic" to indicate this client handles any registry.
 func (g *GenericRegistryClient) Name() string {
 	return "generic"
 }
