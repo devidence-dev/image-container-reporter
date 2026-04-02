@@ -291,13 +291,16 @@ func (s *Service) checkImageForUpdates(ctx context.Context, serviceKey string, i
 		s.logger.Debug("Filtered tags by suffix", "image", image.String(), "original_count", len(stableTags), "filtered_count", len(suffixFilteredTags))
 	}
 
-	// Choose the best candidate tag considering semver and suffix preference
+	// Choose the best candidate tag considering semver and suffix preference.
+	// FindBestUpdateTag returns "" when no update is found (current is already
+	// the latest in its variant/family). Do not fall back to SortVersions here
+	// because it bypasses variant filtering and causes false positives (e.g.
+	// suggesting "5.1.4-lt2-2" as an update for "5.1.4-2").
 	latestTag := utils.FindBestUpdateTag(image.Tag, tagsToUse)
 	if latestTag == "" {
-		sortedTags := utils.SortVersions(tagsToUse)
-		if len(sortedTags) > 0 {
-			latestTag = sortedTags[0]
-		}
+		upToDateChan <- serviceName
+		s.logger.Debug("Image is up to date", "service", serviceName, "image", image.String())
+		return
 	}
 
 	// Compare versions
