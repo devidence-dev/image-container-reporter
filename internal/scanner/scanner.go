@@ -101,6 +101,27 @@ func (s *Service) ScanDirectory(ctx context.Context, path string, config Config)
 	return result, nil
 }
 
+// ScanImages checks a pre-supplied list of images for updates.
+// It is the counterpart of ScanDirectory for non-compose sources (e.g. Docker daemon).
+func (s *Service) ScanImages(ctx context.Context, images []types.DockerImage, projectName string) (*types.ScanResult, error) {
+	imageMap := make(map[string]types.DockerImage, len(images))
+	for _, img := range images {
+		key := fmt.Sprintf("%s:%s", img.ServiceName, img.String())
+		imageMap[key] = img
+	}
+
+	updates, upToDate, errors := s.checkForUpdates(ctx, imageMap, DefaultConfig())
+
+	return &types.ScanResult{
+		ProjectName:        projectName,
+		ScanTimestamp:      time.Now(),
+		UpdatesAvailable:   updates,
+		UpToDateServices:   upToDate,
+		Errors:             errors,
+		TotalServicesFound: len(images),
+	}, nil
+}
+
 // findComposeFiles finds all compose files in the given path
 func (s *Service) findComposeFiles(path string, config Config) ([]string, error) {
 	scanner := compose.NewScanner()
