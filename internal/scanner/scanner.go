@@ -331,6 +331,8 @@ func (s *Service) canHandleRegistry(client types.RegistryClient, registry string
 		return registryName == "docker.io" || registryName == ""
 	case "ghcr.io", "ghcr":
 		return registryName == "ghcr.io"
+	case "generic":
+		return true // handles any registry as universal fallback
 	default:
 		return clientName == registryName
 	}

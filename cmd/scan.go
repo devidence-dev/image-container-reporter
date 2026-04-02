@@ -196,6 +196,11 @@ func createScanService(cfg *types.Config) *scanner.Service {
 		registryClients = append(registryClients, ghcrClient)
 	}
 
+	// Generic OCI client as universal fallback for any registry not handled above.
+	// Also handles docker.io/ghcr.io when their dedicated clients are disabled.
+	genericClient := registry.NewGenericRegistryClient(time.Duration(cfg.Registry.Timeout) * time.Second)
+	registryClients = append(registryClients, genericClient)
+
 	// Crear scanner
 	scanSvc := scanner.NewService(composeParser, registryClients, slog.Default())
 
@@ -329,6 +334,10 @@ func scanDockerDaemon(ctx context.Context, dockerClient *docker.Client, cfg *typ
 		ghcrClient := registry.NewGHCRClient(cfg.Registry.GHCR.Token, time.Duration(cfg.Registry.GHCR.Timeout)*time.Second)
 		registryClients = append(registryClients, ghcrClient)
 	}
+
+	// Generic OCI client as universal fallback for any registry not handled above.
+	genericClient := registry.NewGenericRegistryClient(time.Duration(cfg.Registry.Timeout) * time.Second)
+	registryClients = append(registryClients, genericClient)
 
 	// Verificar actualizaciones para cada imagen
 	var updates []types.ImageUpdate
