@@ -1,5 +1,5 @@
 {
-    "name": "Docker Image Reporter (Go)",
+    "name": "Docker Image Reporter (Go 1.26 trixie)",
     "image": "mcr.microsoft.com/devcontainers/go:dev-1.26-trixie",
     // ── Bind mounts ──────────────────────────────────────────────────────────
     // 1. Workspace: monta el directorio del proyecto en /workspace
@@ -14,12 +14,16 @@
         "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly"
     ],
     // ── Features adicionales ──────────────────────────────────────────────────
-    // La imagen base ya trae Go 1.26 + git + herramientas devcontainer estándar.
-    // Agregamos docker-outside-of-docker para poder hacer `docker` desde el contenedor
-    // usando el socket del host (útil para testear el scan --docker-daemon).
     "features": {
-        // moby:false es requerido en Debian Trixie — moby-cli fue removido de esa distro.
-        // Usa el Docker CLI oficial en su lugar.
+        // zsh + oh-my-zsh como shell por defecto
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": "true",
+            "configureZshAsDefaultShell": "true",
+            "installOhMyZsh": "true",
+            "upgradePackages": "true"
+        },
+        // Docker CLI apuntando al daemon del host (para testear scan --docker-daemon)
+        // moby:false requerido en Debian Trixie — moby-cli fue removido de esa distro
         "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
             "moby": false
         }
@@ -27,7 +31,10 @@
     // ── Variables de entorno ──────────────────────────────────────────────────
     "remoteEnv": {
         // Reenvía el SSH_AUTH_SOCK del host si el usuario usa ssh-agent
-        "SSH_AUTH_SOCK": "${localEnv:SSH_AUTH_SOCK}"
+        "SSH_AUTH_SOCK": "${localEnv:SSH_AUTH_SOCK}",
+        // Evita que la cache de Go llene el workspace — se almacena en el volumen del contenedor
+        "GOPATH": "/go",
+        "GOMODCACHE": "/go/pkg/mod"
     },
     // ── Extensiones VS Code ───────────────────────────────────────────────────
     "customizations": {
@@ -35,21 +42,37 @@
             "extensions": [
                 "golang.go",
                 "ms-vscode.vscode-docker",
-                "ms-vscode.test-adapter-converter"
+                "ms-vscode.vscode-json",
+                "redhat.vscode-yaml",
+                "streetsidesoftware.code-spell-checker",
+                "ms-vscode.test-adapter-converter",
+                "github.copilot",
+                "anthropic.claude-code"
             ],
             "settings": {
-                "go.toolsManagement.checkForUpdates": "local",
+                // Go core
                 "go.useLanguageServer": true,
+                "go.toolsManagement.checkForUpdates": "local",
+                "go.lintTool": "golangci-lint",
+                "go.lintOnSave": "package",
+                // Sin spam de telemetría del gopls
+                "go.survey.prompt": false,
+                // Editor
+                "editor.formatOnSave": true,
+                "editor.codeActionsOnSave": {
+                    "source.organizeImports": "explicit"
+                },
                 "[go]": {
-                    "editor.formatOnSave": true,
                     "editor.defaultFormatter": "golang.go"
                 }
             }
         }
     },
     // ── Ciclo de vida ─────────────────────────────────────────────────────────
-    // govulncheck es la única herramienta del Dockerfile original que NO incluye la imagen base.
-    // golangci-lint y staticcheck (honnef.co/go/tools) ya vienen preinstalados.
-    "postCreateCommand": "go mod tidy && go mod download && go install golang.org/x/vuln/cmd/govulncheck@latest",
+    // onCreateCommand: instala herramientas Go que no incluye la imagen base.
+    // golangci-lint y staticcheck ya vienen preinstalados en la imagen.
+    "onCreateCommand": "go install golang.org/x/vuln/cmd/govulncheck@latest",
+    // postCreateCommand: descarga dependencias del proyecto una vez que el workspace está disponible.
+    "postCreateCommand": "[ -f go.mod ] && go mod download && go mod tidy || echo 'No go.mod found, skipping'",
     "remoteUser": "vscode"
 }

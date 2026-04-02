@@ -51,3 +51,5 @@ coverage.html
 # Log files
 *.log
 icr
+.kiro
+.claude
