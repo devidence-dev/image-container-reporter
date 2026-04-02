@@ -56,14 +56,6 @@ func DefaultConfig() *types.Config {
 			Template: defaultTelegramTemplate(),
 		},
 		Registry: types.RegistryConfig{
-			DockerHub: types.DockerHubConfig{
-				Enabled: true,
-				Timeout: 30,
-			},
-			GHCR: types.GHCRConfig{
-				Enabled: true,
-				Timeout: 30,
-			},
 			Timeout: 30,
 		},
 		Scan: types.ScanConfig{
@@ -107,17 +99,15 @@ func loadFromEnv(cfg *types.Config) {
 		}
 	}
 
-	// GitHub Container Registry
+	// GitHub Container Registry token
 	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
-		cfg.Registry.GHCR.Token = token
+		cfg.Registry.GHCRToken = token
 	}
 
-	// Registry timeouts
+	// Registry timeout
 	if timeout := os.Getenv("REGISTRY_TIMEOUT"); timeout != "" {
 		if val, err := strconv.Atoi(timeout); err == nil && val > 0 {
 			cfg.Registry.Timeout = val
-			cfg.Registry.DockerHub.Timeout = val
-			cfg.Registry.GHCR.Timeout = val
 		}
 	}
 

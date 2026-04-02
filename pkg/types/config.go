@@ -9,22 +9,8 @@ type ScanConfig struct {
 
 // RegistryConfig representa la configuración de registros
 type RegistryConfig struct {
-	DockerHub DockerHubConfig `yaml:"dockerhub" json:"dockerhub"`
-	GHCR      GHCRConfig      `yaml:"ghcr" json:"ghcr"`
-	Timeout   int             `yaml:"timeout" json:"timeout"` // en segundos
-}
-
-// DockerHubConfig configuración para Docker Hub
-type DockerHubConfig struct {
-	Enabled bool `yaml:"enabled" json:"enabled"`
-	Timeout int  `yaml:"timeout" json:"timeout"`
-}
-
-// GHCRConfig configuración para GitHub Container Registry
-type GHCRConfig struct {
-	Enabled bool   `yaml:"enabled" json:"enabled"`
-	Token   string `yaml:"token" json:"token" env:"GITHUB_TOKEN"`
-	Timeout int    `yaml:"timeout" json:"timeout"`
+	GHCRToken string `yaml:"ghcr_token" json:"ghcr_token"`
+	Timeout   int    `yaml:"timeout" json:"timeout"` // en segundos
 }
 
 // TelegramConfig configuración para notificaciones Telegram

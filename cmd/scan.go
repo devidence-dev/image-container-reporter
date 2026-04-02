@@ -181,28 +181,10 @@ func createScanService(cfg *types.Config) *scanner.Service {
 	// Crear parser de compose
 	composeParser := compose.NewParser()
 
-	// Crear clientes de registro
-	var registryClients []types.RegistryClient
-
-	// Docker Hub
-	if cfg.Registry.DockerHub.Enabled {
-		dockerHubClient := registry.NewDockerHubClient(time.Duration(cfg.Registry.DockerHub.Timeout) * time.Second)
-		registryClients = append(registryClients, dockerHubClient)
-	}
-
-	// GitHub Container Registry
-	if cfg.Registry.GHCR.Enabled {
-		ghcrClient := registry.NewGHCRClient(cfg.Registry.GHCR.Token, time.Duration(cfg.Registry.GHCR.Timeout)*time.Second)
-		registryClients = append(registryClients, ghcrClient)
-	}
-
-	// Generic OCI client as universal fallback for any registry not handled above.
-	// Also handles docker.io/ghcr.io when their dedicated clients are disabled.
-	genericClient := registry.NewGenericRegistryClient(time.Duration(cfg.Registry.Timeout) * time.Second)
-	registryClients = append(registryClients, genericClient)
+	genericClient := registry.NewGenericRegistryClient(time.Duration(cfg.Registry.Timeout)*time.Second, cfg.Registry.GHCRToken)
 
 	// Crear scanner
-	scanSvc := scanner.NewService(composeParser, registryClients, slog.Default())
+	scanSvc := scanner.NewService(composeParser, []types.RegistryClient{genericClient}, slog.Default())
 
 	return scanSvc
 }
@@ -320,24 +302,10 @@ func scanDockerDaemon(ctx context.Context, dockerClient *docker.Client, cfg *typ
 		}, nil
 	}
 
-	// Crear servicios para verificar actualizaciones
-	var registryClients []types.RegistryClient
-
-	// Docker Hub
-	if cfg.Registry.DockerHub.Enabled {
-		dockerHubClient := registry.NewDockerHubClient(time.Duration(cfg.Registry.DockerHub.Timeout) * time.Second)
-		registryClients = append(registryClients, dockerHubClient)
+	// Crear servicio para verificar actualizaciones
+	registryClients := []types.RegistryClient{
+		registry.NewGenericRegistryClient(time.Duration(cfg.Registry.Timeout)*time.Second, cfg.Registry.GHCRToken),
 	}
-
-	// GitHub Container Registry
-	if cfg.Registry.GHCR.Enabled {
-		ghcrClient := registry.NewGHCRClient(cfg.Registry.GHCR.Token, time.Duration(cfg.Registry.GHCR.Timeout)*time.Second)
-		registryClients = append(registryClients, ghcrClient)
-	}
-
-	// Generic OCI client as universal fallback for any registry not handled above.
-	genericClient := registry.NewGenericRegistryClient(time.Duration(cfg.Registry.Timeout) * time.Second)
-	registryClients = append(registryClients, genericClient)
 
 	// Verificar actualizaciones para cada imagen
 	var updates []types.ImageUpdate

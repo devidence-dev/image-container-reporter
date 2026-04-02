@@ -22,8 +22,7 @@ const (
 	configBotToken  = "bot_token"
 	configChatID    = "chat_id"
 	configTemplate  = "template"
-	configDockerHub = "dockerhub"
-	configGHCR      = "ghcr"
+	configGHCR = "ghcr"
 	configToken     = "token"
 	configRecursive = "recursive"
 	configPatterns  = "patterns"
@@ -229,18 +228,17 @@ func setRegistryConfig(cfg *types.Config, keys []string, value string) error {
 	subkey := strings.ToLower(keys[1])
 
 	switch provider {
-	case configDockerHub:
-		return setDockerHubConfig(cfg, subkey, value)
 	case configGHCR:
-		return setGHCRConfig(cfg, subkey, value)
+		if subkey != configToken {
+			return fmt.Errorf("unknown ghcr key: %s (use 'registry.ghcr.token')", subkey)
+		}
+		cfg.Registry.GHCRToken = value
 	case configTimeout:
 		val, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("invalid timeout value: %s", value)
 		}
 		cfg.Registry.Timeout = val
-		cfg.Registry.DockerHub.Timeout = val
-		cfg.Registry.GHCR.Timeout = val
 	default:
 		return fmt.Errorf("unknown registry provider: %s", provider)
 	}
@@ -256,80 +254,18 @@ func getRegistryConfig(cfg *types.Config, keys []string) (string, error) {
 	subkey := strings.ToLower(keys[1])
 
 	switch provider {
-	case configDockerHub:
-		return getDockerHubConfig(cfg, subkey)
 	case configGHCR:
-		return getGHCRConfig(cfg, subkey)
+		if subkey != configToken {
+			return "", fmt.Errorf("unknown ghcr key: %s (use 'registry.ghcr.token')", subkey)
+		}
+		if cfg.Registry.GHCRToken == "" {
+			return "", nil
+		}
+		return "[REDACTED]", nil
 	case configTimeout:
 		return strconv.Itoa(cfg.Registry.Timeout), nil
 	default:
 		return "", fmt.Errorf("unknown registry provider: %s", provider)
-	}
-}
-
-func setDockerHubConfig(cfg *types.Config, key, value string) error {
-	switch key {
-	case configEnabled:
-		val, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("invalid boolean value: %s", value)
-		}
-		cfg.Registry.DockerHub.Enabled = val
-	case configTimeout:
-		val, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("invalid timeout value: %s", value)
-		}
-		cfg.Registry.DockerHub.Timeout = val
-	default:
-		return fmt.Errorf("unknown dockerhub key: %s", key)
-	}
-	return nil
-}
-
-func getDockerHubConfig(cfg *types.Config, key string) (string, error) {
-	switch key {
-	case configEnabled:
-		return strconv.FormatBool(cfg.Registry.DockerHub.Enabled), nil
-	case configTimeout:
-		return strconv.Itoa(cfg.Registry.DockerHub.Timeout), nil
-	default:
-		return "", fmt.Errorf("unknown dockerhub key: %s", key)
-	}
-}
-
-func setGHCRConfig(cfg *types.Config, key, value string) error {
-	switch key {
-	case configEnabled:
-		val, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("invalid boolean value: %s", value)
-		}
-		cfg.Registry.GHCR.Enabled = val
-	case configToken:
-		cfg.Registry.GHCR.Token = value
-	case configTimeout:
-		val, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("invalid timeout value: %s", value)
-		}
-		cfg.Registry.GHCR.Timeout = val
-	default:
-		return fmt.Errorf("unknown ghcr key: %s", key)
-	}
-	return nil
-}
-
-func getGHCRConfig(cfg *types.Config, key string) (string, error) {
-	switch key {
-	case configEnabled:
-		return strconv.FormatBool(cfg.Registry.GHCR.Enabled), nil
-	case configToken:
-		return cfg.Registry.GHCR.Token, nil
-	case configTimeout:
-		return strconv.Itoa(cfg.Registry.GHCR.Timeout), nil
-	default:
-		return "", fmt.Errorf("unknown ghcr key: %s", key)
 	}
 }
 

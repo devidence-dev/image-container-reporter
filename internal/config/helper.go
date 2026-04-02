@@ -21,9 +21,8 @@ const (
 	keyBotToken  = "bot_token"
 	keyChatID    = "chat_id"
 	keyTemplate  = "template"
-	keyDockerHub = "dockerhub"
-	keyGHCR      = "ghcr"
-	keyToken     = "token"
+	keyGHCR  = "ghcr"
+	keyToken = "token"
 	keyRecursive = "recursive"
 	keyPatterns  = "patterns"
 
@@ -147,27 +146,13 @@ func setRegistryValue(cfg *types.Config, parts []string, value string) error {
 			return errors.Wrapf("config.setRegistryValue", err, "invalid timeout value: %s", value)
 		}
 		cfg.Registry.Timeout = timeout
-	case keyDockerHub:
-		if len(parts) < 2 {
-			return errors.New("config.setRegistryValue", "missing dockerhub field")
-		}
-		switch parts[1] {
-		case keyEnabled:
-			enabled := strings.ToLower(value) == valueTrue
-			cfg.Registry.DockerHub.Enabled = enabled
-		default:
-			return errors.Newf("config.setRegistryValue", "unknown dockerhub field: %s", parts[1])
-		}
 	case keyGHCR:
 		if len(parts) < 2 {
 			return errors.New("config.setRegistryValue", "missing ghcr field")
 		}
 		switch parts[1] {
-		case keyEnabled:
-			enabled := strings.ToLower(value) == valueTrue
-			cfg.Registry.GHCR.Enabled = enabled
 		case keyToken:
-			cfg.Registry.GHCR.Token = value
+			cfg.Registry.GHCRToken = value
 		default:
 			return errors.Newf("config.setRegistryValue", "unknown ghcr field: %s", parts[1])
 		}
@@ -186,26 +171,14 @@ func getRegistryValue(cfg *types.Config, parts []string) (string, error) {
 	switch parts[0] {
 	case keyTimeout:
 		return fmt.Sprintf("%d", cfg.Registry.Timeout), nil
-	case keyDockerHub:
-		if len(parts) < 2 {
-			return "", errors.New("config.getRegistryValue", "missing dockerhub field")
-		}
-		switch parts[1] {
-		case keyEnabled:
-			return fmt.Sprintf("%t", cfg.Registry.DockerHub.Enabled), nil
-		default:
-			return "", errors.Newf("config.getRegistryValue", "unknown dockerhub field: %s", parts[1])
-		}
 	case keyGHCR:
 		if len(parts) < 2 {
 			return "", errors.New("config.getRegistryValue", "missing ghcr field")
 		}
 		switch parts[1] {
-		case keyEnabled:
-			return fmt.Sprintf("%t", cfg.Registry.GHCR.Enabled), nil
 		case keyToken:
 			// No mostrar el token completo por seguridad
-			if cfg.Registry.GHCR.Token == "" {
+			if cfg.Registry.GHCRToken == "" {
 				return "", nil
 			}
 			return "[REDACTED]", nil

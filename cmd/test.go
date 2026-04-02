@@ -14,10 +14,6 @@ import (
 	"github.com/user/docker-image-reporter/pkg/types"
 )
 
-// Registry name constants
-const (
-	ghcrRegistryName = "GitHub Container Registry"
-)
 
 // newTestCmd crea el comando test
 func newTestCmd() *cobra.Command {
@@ -117,62 +113,24 @@ func testTelegram(cmd *cobra.Command, cfg *types.Config) error {
 func testRegistries(cmd *cobra.Command, cfg *types.Config) error {
 	cmd.Println("🔄 Testing registry connectivity...")
 
-	var clients []types.RegistryClient
-	var clientNames []string
+	client := registry.NewGenericRegistryClient(time.Duration(cfg.Registry.Timeout)*time.Second, cfg.Registry.GHCRToken)
 
-	// Docker Hub
-	if cfg.Registry.DockerHub.Enabled {
-		client := registry.NewDockerHubClient(time.Duration(cfg.Registry.DockerHub.Timeout) * time.Second)
-		clients = append(clients, client)
-		clientNames = append(clientNames, "Docker Hub")
-	}
-
-	// GitHub Container Registry
-	if cfg.Registry.GHCR.Enabled {
-		client := registry.NewGHCRClient(cfg.Registry.GHCR.Token, time.Duration(cfg.Registry.GHCR.Timeout)*time.Second)
-		clients = append(clients, client)
-		clientNames = append(clientNames, "GitHub Container Registry")
-	}
-
-	if len(clients) == 0 {
-		cmd.Println("⚠️  No registries are enabled in configuration")
-		return nil
-	}
-
-	// Crear contexto con timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Probar cada registro
-	for i, client := range clients {
-		cmd.Printf("🔍 Testing %s...\n", clientNames[i])
+	testImage := types.DockerImage{
+		Registry:   "docker.io",
+		Repository: "alpine",
+		Tag:        "latest",
+	}
 
-		// Intentar obtener tags de una imagen de prueba
-		testImage := types.DockerImage{
-			Registry:   "docker.io",
-			Repository: "alpine",
-			Tag:        "latest",
-		}
-
-		if clientNames[i] == ghcrRegistryName {
-			testImage = types.DockerImage{
-				Registry:   "ghcr.io",
-				Repository: "octocat/hello-world",
-				Tag:        "latest",
-			}
-		}
-
-		tags, err := client.GetLatestTags(ctx, testImage)
-		if err != nil {
-			cmd.Printf("❌ %s test failed: %v\n", clientNames[i], err)
-			if clientNames[i] == "GitHub Container Registry" && cfg.Registry.GHCR.Token == "" {
-				cmd.Println("💡 GitHub Container Registry requires a personal access token")
-				cmd.Println("💡 Set GITHUB_TOKEN environment variable or use 'config set registry.ghcr.token <token>'")
-			}
-		} else {
-			cmd.Printf("✅ %s connectivity successful\n", clientNames[i])
-			cmd.Printf("📦 Found %d tags for test image\n", len(tags))
-		}
+	cmd.Printf("🔍 Testing OCI registry (docker.io/alpine)...\n")
+	tags, err := client.GetLatestTags(ctx, testImage)
+	if err != nil {
+		cmd.Printf("❌ Registry test failed: %v\n", err)
+	} else {
+		cmd.Printf("✅ Registry connectivity successful\n")
+		cmd.Printf("📦 Found %d tags for test image\n", len(tags))
 	}
 
 	return nil

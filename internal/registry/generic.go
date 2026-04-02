@@ -16,12 +16,45 @@ import (
 // using the standard OCI Distribution Specification via google/go-containerregistry.
 // It acts as a universal fallback for registries not handled by specialized clients.
 type GenericRegistryClient struct {
-	timeout time.Duration
+	timeout  time.Duration
+	keychain authn.Keychain
 }
 
 // NewGenericRegistryClient creates a new generic OCI registry client.
-func NewGenericRegistryClient(timeout time.Duration) *GenericRegistryClient {
-	return &GenericRegistryClient{timeout: timeout}
+// ghcrToken is optional: when non-empty it is used as a Bearer token for ghcr.io,
+// which allows access to private GHCR images. All other registries fall back to
+// credentials from ~/.docker/config.json (authn.DefaultKeychain).
+func NewGenericRegistryClient(timeout time.Duration, ghcrToken string) *GenericRegistryClient {
+	return &GenericRegistryClient{
+		timeout:  timeout,
+		keychain: buildKeychain(ghcrToken),
+	}
+}
+
+// buildKeychain returns a keychain that injects a Bearer token for ghcr.io when
+// provided, and falls back to the Docker config keychain for everything else.
+func buildKeychain(ghcrToken string) authn.Keychain {
+	if ghcrToken == "" {
+		return authn.DefaultKeychain
+	}
+	return &tokenKeychain{ghcrToken: ghcrToken, fallback: authn.DefaultKeychain}
+}
+
+// tokenKeychain provides ghcr.io authentication via a configured token and
+// delegates all other registries to the Docker config keychain.
+type tokenKeychain struct {
+	ghcrToken string
+	fallback  authn.Keychain
+}
+
+func (k *tokenKeychain) Resolve(res authn.Resource) (authn.Authenticator, error) {
+	if strings.HasSuffix(res.RegistryStr(), "ghcr.io") {
+		return authn.FromConfig(authn.AuthConfig{
+			Username: "x-access-token",
+			Password: k.ghcrToken,
+		}), nil
+	}
+	return k.fallback.Resolve(res)
 }
 
 // Name returns "generic" to indicate this client handles any registry as a fallback.
@@ -44,7 +77,7 @@ func (g *GenericRegistryClient) GetLatestTags(ctx context.Context, image types.D
 
 	tags, err := remote.List(repo,
 		remote.WithContext(ctx),
-		remote.WithAuthFromKeychain(authn.DefaultKeychain),
+		remote.WithAuthFromKeychain(g.keychain),
 	)
 	if err != nil {
 		return nil, errors.Wrapf("generic.GetLatestTags", err, "listing tags for %s", repoRef)

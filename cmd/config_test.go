@@ -67,10 +67,7 @@ func TestRunConfigShow(t *testing.T) {
 			ChatID:   "123456",
 		},
 		Registry: types.RegistryConfig{
-			DockerHub: types.DockerHubConfig{
-				Enabled: true,
-				Timeout: 30,
-			},
+			Timeout: 30,
 		},
 	}
 
@@ -145,14 +142,6 @@ func TestRunConfigGet(t *testing.T) {
 		},
 		Registry: types.RegistryConfig{
 			Timeout: 30,
-			DockerHub: types.DockerHubConfig{
-				Enabled: true,
-				Timeout: 30,
-			},
-			GHCR: types.GHCRConfig{
-				Enabled: true,
-				Timeout: 30,
-			},
 		},
 		Scan: types.ScanConfig{
 			Recursive: true,
@@ -234,24 +223,9 @@ func TestSetConfigValue_Registry(t *testing.T) {
 		check func(*types.Config) bool
 	}{
 		{
-			key:   "registry.dockerhub.enabled",
-			value: "true",
-			check: func(c *types.Config) bool { return c.Registry.DockerHub.Enabled },
-		},
-		{
-			key:   "registry.dockerhub.timeout",
-			value: "60",
-			check: func(c *types.Config) bool { return c.Registry.DockerHub.Timeout == 60 },
-		},
-		{
-			key:   "registry.ghcr.enabled",
-			value: "true",
-			check: func(c *types.Config) bool { return c.Registry.GHCR.Enabled },
-		},
-		{
 			key:   "registry.ghcr.token",
 			value: "ghcr_token",
-			check: func(c *types.Config) bool { return c.Registry.GHCR.Token == "ghcr_token" },
+			check: func(c *types.Config) bool { return c.Registry.GHCRToken == "ghcr_token" },
 		},
 	}
 
@@ -318,15 +292,8 @@ func TestGetConfigValue(t *testing.T) {
 			ChatID:   "123456",
 		},
 		Registry: types.RegistryConfig{
-			DockerHub: types.DockerHubConfig{
-				Enabled: true,
-				Timeout: 30,
-			},
-			GHCR: types.GHCRConfig{
-				Enabled: true,
-				Token:   "ghcr_token",
-				Timeout: 45,
-			},
+			GHCRToken: "ghcr_token",
+			Timeout:   30,
 		},
 		Scan: types.ScanConfig{
 			Recursive: true,
@@ -342,9 +309,7 @@ func TestGetConfigValue(t *testing.T) {
 		{"telegram.enabled", "true"},
 		{"telegram.bot_token", "test_token"},
 		{"telegram.chat_id", "123456"},
-		{"registry.dockerhub.enabled", "true"},
-		{"registry.dockerhub.timeout", "30"},
-		{"registry.ghcr.token", "ghcr_token"},
+		{"registry.ghcr.token", "[REDACTED]"},
 		{"scan.recursive", "true"},
 		{"scan.timeout", "300"},
 		{"scan.patterns", "docker-compose.yml,compose.yml"},

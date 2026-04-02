@@ -134,12 +134,9 @@ func TestTestTelegram_MissingChatID(t *testing.T) {
 	}
 }
 
-func TestTestRegistries_NoRegistriesEnabled(t *testing.T) {
+func TestTestRegistries_AlwaysRuns(t *testing.T) {
 	cfg := &types.Config{
-		Registry: types.RegistryConfig{
-			DockerHub: types.DockerHubConfig{Enabled: false},
-			GHCR:      types.GHCRConfig{Enabled: false},
-		},
+		Registry: types.RegistryConfig{Timeout: 1}, // 1s timeout → fails fast in tests
 	}
 
 	cmd := &cobra.Command{}
@@ -148,12 +145,13 @@ func TestTestRegistries_NoRegistriesEnabled(t *testing.T) {
 
 	err := testRegistries(cmd, cfg)
 
+	// testRegistries never returns an error — failures are printed, not propagated
 	if err != nil {
-		t.Errorf("Expected no error for no registries enabled, got %v", err)
+		t.Errorf("Expected no error, got %v", err)
 	}
 
 	output := buf.String()
-	if !bytes.Contains([]byte(output), []byte("No registries are enabled in configuration")) {
-		t.Error("Expected output to mention no registries enabled")
+	if !bytes.Contains([]byte(output), []byte("Testing OCI registry")) {
+		t.Error("Expected output to mention OCI registry test")
 	}
 }

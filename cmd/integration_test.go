@@ -20,10 +20,7 @@ func TestScanWorkflowIntegration(t *testing.T) {
 	// Create a test config
 	cfg := &types.Config{
 		Registry: types.RegistryConfig{
-			DockerHub: types.DockerHubConfig{
-				Enabled: true,
-				Timeout: 30,
-			},
+			Timeout: 30,
 		},
 		Scan: types.ScanConfig{
 			Recursive: true,
@@ -134,22 +131,7 @@ func TestComposeParserIntegration(t *testing.T) {
 
 // Helper function to create scan service for testing
 func createScanServiceForTest(cfg *types.Config) *scanner.Service {
-	// This duplicates the logic from cmd/scan.go but for testing
 	composeParser := compose.NewParser()
-
-	var registryClients []types.RegistryClient
-
-	// Docker Hub
-	if cfg.Registry.DockerHub.Enabled {
-		client := registry.NewDockerHubClient(time.Duration(cfg.Registry.DockerHub.Timeout) * time.Second)
-		registryClients = append(registryClients, client)
-	}
-
-	// GHCR
-	if cfg.Registry.GHCR.Enabled {
-		client := registry.NewGHCRClient(cfg.Registry.GHCR.Token, time.Duration(cfg.Registry.GHCR.Timeout)*time.Second)
-		registryClients = append(registryClients, client)
-	}
-
-	return scanner.NewService(composeParser, registryClients, slog.Default())
+	client := registry.NewGenericRegistryClient(time.Duration(cfg.Registry.Timeout)*time.Second, cfg.Registry.GHCRToken)
+	return scanner.NewService(composeParser, []types.RegistryClient{client}, slog.Default())
 }

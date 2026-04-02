@@ -22,7 +22,7 @@ func main() {
 	repo := os.Args[1]
 	current := os.Args[2]
 
-	client := registry.NewDockerHubClient(30 * time.Second)
+	client := registry.NewGenericRegistryClient(30*time.Second, "")
 	ctx := context.Background()
 
 	image := types.DockerImage{Registry: "docker.io", Repository: repo, Tag: current}

@@ -16,14 +16,6 @@ func TestDefaultConfig(t *testing.T) {
 		t.Error("Expected Telegram to be disabled by default")
 	}
 
-	if !cfg.Registry.DockerHub.Enabled {
-		t.Error("Expected DockerHub to be enabled by default")
-	}
-
-	if !cfg.Registry.GHCR.Enabled {
-		t.Error("Expected GHCR to be enabled by default")
-	}
-
 	if !cfg.Scan.Recursive {
 		t.Error("Expected recursive scan to be enabled by default")
 	}
@@ -85,8 +77,8 @@ func TestLoadFromEnv(t *testing.T) {
 		t.Error("Expected Telegram to be enabled")
 	}
 
-	if cfg.Registry.GHCR.Token != "test-github-token" {
-		t.Errorf("Expected GitHub token 'test-github-token', got '%s'", cfg.Registry.GHCR.Token)
+	if cfg.Registry.GHCRToken != "test-github-token" {
+		t.Errorf("Expected GitHub token 'test-github-token', got '%s'", cfg.Registry.GHCRToken)
 	}
 }
 
@@ -171,16 +163,8 @@ func TestSaveAndLoad(t *testing.T) {
 			Enabled:  true,
 		},
 		Registry: types.RegistryConfig{
-			DockerHub: types.DockerHubConfig{
-				Enabled: true,
-				Timeout: 45,
-			},
-			GHCR: types.GHCRConfig{
-				Enabled: true,
-				Token:   "github-token",
-				Timeout: 45,
-			},
-			Timeout: 45,
+			GHCRToken: "github-token",
+			Timeout:   45,
 		},
 		Scan: types.ScanConfig{
 			Recursive: false,
