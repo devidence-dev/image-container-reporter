@@ -5,7 +5,7 @@ on:
   # ① Automático: alguien hace push de un tag vX.Y.Z manualmente desde CLI
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
   # ② Manual: botón "Run workflow" en la pestaña Actions de GitHub
   #    Permite hacer promote directamente desde la UI sin tocar la CLI.
@@ -31,7 +31,7 @@ on:
         type: boolean
 
 permissions:
-  contents: write   # necesario para crear tags y GitHub Releases
+  contents: write # necesario para crear tags y GitHub Releases
 
 jobs:
   release:
@@ -39,177 +39,185 @@ jobs:
     runs-on: ubuntu-22.04-arm
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0   # historial completo para calcular tag anterior y generar changelog
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # historial completo para calcular tag anterior y generar changelog
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: .go-version
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
 
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
+      - name: Validate Go version
+        run: |
+          EXPECTED="go$(tr -d '[:space:]' < .go-version)"
+          ACTUAL="$(go env GOVERSION)"
+          echo "Expected: ${EXPECTED}"
+          echo "Actual:   ${ACTUAL}"
+          test "${ACTUAL}" = "${EXPECTED}"
 
-    - name: Download dependencies
-      run: go mod download
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-    # ── 1. Calcular / validar la versión ─────────────────────────────────────
-    # - Si el trigger fue push de tag → usar el tag del ref directamente.
-    # - Si el trigger fue workflow_dispatch → calcular o usar custom_tag.
-    - name: Resolve version
-      id: version
-      run: |
-        if [ "${{ github.event_name }}" = "push" ]; then
-          # Trigger automático: el tag ya existe en el ref
-          VERSION="${GITHUB_REF#refs/tags/}"
-          echo "Triggered by tag push: $VERSION"
-        elif [ -n "${{ inputs.custom_tag }}" ]; then
-          # Tag personalizado manual
-          VERSION="${{ inputs.custom_tag }}"
-          [[ "$VERSION" != v* ]] && VERSION="v${VERSION}"
-          echo "Using custom tag: $VERSION"
-        else
-          # Auto-bump semver desde el último tag
-          LATEST=$(git tag --list 'v*' --sort=-version:refname \
-                   | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-          [ -z "$LATEST" ] && LATEST="v0.0.0"
-          echo "Latest tag: $LATEST"
+      - name: Download dependencies
+        run: go mod download
 
-          MAJOR=$(echo "$LATEST" | sed 's/v//' | cut -d. -f1)
-          MINOR=$(echo "$LATEST" | sed 's/v//' | cut -d. -f2)
-          PATCH=$(echo "$LATEST" | sed 's/v//' | cut -d. -f3)
+      # ── 1. Calcular / validar la versión ─────────────────────────────────────
+      # - Si el trigger fue push de tag → usar el tag del ref directamente.
+      # - Si el trigger fue workflow_dispatch → calcular o usar custom_tag.
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # Trigger automático: el tag ya existe en el ref
+            VERSION="${GITHUB_REF#refs/tags/}"
+            echo "Triggered by tag push: $VERSION"
+          elif [ -n "${{ inputs.custom_tag }}" ]; then
+            # Tag personalizado manual
+            VERSION="${{ inputs.custom_tag }}"
+            [[ "$VERSION" != v* ]] && VERSION="v${VERSION}"
+            echo "Using custom tag: $VERSION"
+          else
+            # Auto-bump semver desde el último tag
+            LATEST=$(git tag --list 'v*' --sort=-version:refname \
+                     | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+            [ -z "$LATEST" ] && LATEST="v0.0.0"
+            echo "Latest tag: $LATEST"
 
-          case "${{ inputs.bump }}" in
-            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
-            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
-            patch) PATCH=$((PATCH+1)) ;;
-          esac
+            MAJOR=$(echo "$LATEST" | sed 's/v//' | cut -d. -f1)
+            MINOR=$(echo "$LATEST" | sed 's/v//' | cut -d. -f2)
+            PATCH=$(echo "$LATEST" | sed 's/v//' | cut -d. -f3)
 
-          VERSION="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "Auto-bumped (${{ inputs.bump }}): $LATEST → $VERSION"
-        fi
+            case "${{ inputs.bump }}" in
+              major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH+1)) ;;
+            esac
 
-        # Validar formato
-        if ! echo "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-          echo "ERROR: '$VERSION' no es un tag semver válido (esperado vX.Y.Z)"
-          exit 1
-        fi
+            VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+            echo "Auto-bumped (${{ inputs.bump }}): $LATEST → $VERSION"
+          fi
 
-        # Verificar que el tag no exista ya (solo para dispatch, en push ya existe)
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          if git tag --list | grep -qx "$VERSION"; then
-            echo "ERROR: El tag '$VERSION' ya existe. Usa un custom_tag diferente o espera."
+          # Validar formato
+          if ! echo "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "ERROR: '$VERSION' no es un tag semver válido (esperado vX.Y.Z)"
             exit 1
           fi
-        fi
 
-        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-        echo "version_number=${VERSION#v}" >> "$GITHUB_OUTPUT"
+          # Verificar que el tag no exista ya (solo para dispatch, en push ya existe)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if git tag --list | grep -qx "$VERSION"; then
+              echo "ERROR: El tag '$VERSION' ya existe. Usa un custom_tag diferente o espera."
+              exit 1
+            fi
+          fi
 
-    # ── 2. Crear el tag Git (solo en dispatch, en push ya viene creado) ───────
-    - name: Create Git tag
-      if: github.event_name == 'workflow_dispatch'
-      run: |
-        VERSION="${{ steps.version.outputs.version }}"
-        git config user.name  "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git tag -a "$VERSION" -m "Release $VERSION"
-        git push origin "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_number=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
-    # ── 3. Construir binarios para todas las plataformas ─────────────────────
-    - name: Build release binaries
-      run: |
-        VERSION="${{ steps.version.outputs.version_number }}"
-        mkdir -p release
+      # ── 2. Crear el tag Git (solo en dispatch, en push ya viene creado) ───────
+      - name: Create Git tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
 
-        platforms=(
-          "linux/arm64"
-          "linux/amd64"
-        )
+      # ── 3. Construir binarios para todas las plataformas ─────────────────────
+      - name: Build release binaries
+        run: |
+          VERSION="${{ steps.version.outputs.version_number }}"
+          mkdir -p release
 
-        for platform in "${platforms[@]}"; do
-          GOOS=${platform%/*}
-          GOARCH=${platform#*/}
-          BINARY="icr-${GOOS}-${GOARCH}"
+          platforms=(
+            "linux/arm64"
+            "linux/amd64"
+          )
 
-          echo "▶ Building $BINARY (version=$VERSION)"
-          CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
-            -ldflags="-w -s -X main.version=${VERSION}" \
-            -o "release/${BINARY}" \
-            ./main.go
+          for platform in "${platforms[@]}"; do
+            GOOS=${platform%/*}
+            GOARCH=${platform#*/}
+            BINARY="icr-${GOOS}-${GOARCH}"
 
-          sha256sum "release/${BINARY}" > "release/${BINARY}.sha256"
-          echo "  ✓ $(du -sh release/${BINARY} | cut -f1)  $(cat release/${BINARY}.sha256)"
-        done
+            echo "▶ Building $BINARY (version=$VERSION)"
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
+              -ldflags="-w -s -X main.version=${VERSION}" \
+              -o "release/${BINARY}" \
+              ./main.go
 
-    - name: Test ARM64 binary
-      run: ./release/icr-linux-arm64 --help
+            sha256sum "release/${BINARY}" > "release/${BINARY}.sha256"
+            echo "  ✓ $(du -sh release/${BINARY} | cut -f1)  $(cat release/${BINARY}.sha256)"
+          done
 
-    # ── 4. Generar release notes desde git log ────────────────────────────────
-    - name: Generate release notes
-      id: notes
-      run: |
-        VERSION="${{ steps.version.outputs.version }}"
-        # Buscar el tag anterior para delimitar el rango del changelog
-        PREV_TAG=$(git tag --list 'v*' --sort=-version:refname \
-                   | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-                   | grep -v "^${VERSION}$" | head -1)
+      - name: Test ARM64 binary
+        run: ./release/icr-linux-arm64 --help
 
-        if [ -n "$PREV_TAG" ]; then
-          RANGE="${PREV_TAG}..HEAD"
-          echo "Changelog range: $RANGE"
-        else
-          RANGE="HEAD"
-          echo "First release, showing all commits"
-        fi
+      # ── 4. Generar release notes desde git log ────────────────────────────────
+      - name: Generate release notes
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Buscar el tag anterior para delimitar el rango del changelog
+          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname \
+                     | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+                     | grep -v "^${VERSION}$" | head -1)
 
-        COMMITS=$(git log $RANGE --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" --no-merges)
-        [ -z "$COMMITS" ] && COMMITS="- No changes since last release"
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..HEAD"
+            echo "Changelog range: $RANGE"
+          else
+            RANGE="HEAD"
+            echo "First release, showing all commits"
+          fi
 
-        {
-          echo "## What's Changed"
-          echo ""
-          echo "$COMMITS"
-          echo ""
-          echo "---"
-          echo ""
-          echo "### Downloads"
-          echo "| Platform | Binary | Checksum |"
-          echo "|---|---|---|"
-          echo "| Linux ARM64 | \`icr-linux-arm64\` | \`icr-linux-arm64.sha256\` |"
-          echo "| Linux AMD64 | \`icr-linux-amd64\` | \`icr-linux-amd64.sha256\` |"
-          echo ""
-          echo "### Quick install"
-          echo "\`\`\`bash"
-          echo "# ARM64 (Raspberry Pi / Apple Silicon servers)"
-          echo "wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/icr-linux-arm64"
-          echo "chmod +x icr-linux-arm64 && sudo mv icr-linux-arm64 /usr/local/bin/icr"
-          echo ""
-          echo "# AMD64 (x86-64)"
-          echo "wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/icr-linux-amd64"
-          echo "chmod +x icr-linux-amd64 && sudo mv icr-linux-amd64 /usr/local/bin/icr"
-          echo "\`\`\`"
-          echo ""
-          echo "**Go version:** $(cat .go-version | tr -d '[:space:]')"
-        } > release_notes.md
+          COMMITS=$(git log $RANGE --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" --no-merges)
+          [ -z "$COMMITS" ] && COMMITS="- No changes since last release"
 
-    # ── 5. Publicar el GitHub Release ─────────────────────────────────────────
-    - name: Publish GitHub Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name:   ${{ steps.version.outputs.version }}
-        name:       "Release ${{ steps.version.outputs.version }}"
-        body_path:  release_notes.md
-        prerelease: ${{ inputs.prerelease || false }}
-        files:      release/*
-        draft:      false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          {
+            echo "## What's Changed"
+            echo ""
+            echo "$COMMITS"
+            echo ""
+            echo "---"
+            echo ""
+            echo "### Downloads"
+            echo "| Platform | Binary | Checksum |"
+            echo "|---|---|---|"
+            echo "| Linux ARM64 | \`icr-linux-arm64\` | \`icr-linux-arm64.sha256\` |"
+            echo "| Linux AMD64 | \`icr-linux-amd64\` | \`icr-linux-amd64.sha256\` |"
+            echo ""
+            echo "### Quick install"
+            echo "\`\`\`bash"
+            echo "# ARM64 (Raspberry Pi / Apple Silicon servers)"
+            echo "wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/icr-linux-arm64"
+            echo "chmod +x icr-linux-arm64 && sudo mv icr-linux-arm64 /usr/local/bin/icr"
+            echo ""
+            echo "# AMD64 (x86-64)"
+            echo "wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/icr-linux-amd64"
+            echo "chmod +x icr-linux-amd64 && sudo mv icr-linux-amd64 /usr/local/bin/icr"
+            echo "\`\`\`"
+            echo ""
+            echo "**Go version:** $(cat .go-version | tr -d '[:space:]')"
+          } > release_notes.md
+
+      # ── 5. Publicar el GitHub Release ─────────────────────────────────────────
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "Release ${{ steps.version.outputs.version }}"
+          body_path: release_notes.md
+          prerelease: ${{ inputs.prerelease || false }}
+          files: release/*
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, go-main ]
+    branches: [main, go-main]
   pull_request:
-    branches: [ main, go-main ]
+    branches: [main, go-main]
 
 jobs:
   test:
@@ -17,117 +17,138 @@ jobs:
             arch: arm64
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: .go-version
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
 
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
+      - name: Validate Go version
+        run: |
+          EXPECTED="go$(tr -d '[:space:]' < .go-version)"
+          ACTUAL="$(go env GOVERSION)"
+          echo "Expected: ${EXPECTED}"
+          echo "Actual:   ${ACTUAL}"
+          test "${ACTUAL}" = "${EXPECTED}"
 
-    - name: Download dependencies
-      run: go mod download
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-    - name: Run tests with coverage
-      run: |
-        if [ "${{ matrix.os }}" = "ubuntu-latest" ] || [ "${{ matrix.os }}" = "macos-latest" ]; then
-          echo "Running tests with race detection"
-          go test ./... -race -coverprofile=coverage.out -covermode=atomic
-        else
-          echo "Running tests without race detection (ARM64 limitation)"
-          go test ./... -coverprofile=coverage.out -covermode=atomic
-        fi
+      - name: Download dependencies
+        run: go mod download
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
+      - name: Run tests with coverage
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ] || [ "${{ matrix.os }}" = "macos-latest" ]; then
+            echo "Running tests with race detection"
+            go test ./... -race -coverprofile=coverage.out -covermode=atomic
+          else
+            echo "Running tests without race detection (ARM64 limitation)"
+            go test ./... -coverprofile=coverage.out -covermode=atomic
+          fi
 
-    - name: Run go vet
-      run: go vet ./...
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
 
-    - name: Install golangci-lint
-      run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - name: Run go vet
+        run: go vet ./...
 
-    - name: Run golangci-lint
-      run: golangci-lint run
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
-    - name: Install govulncheck
-      run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Run golangci-lint
+        run: golangci-lint run
 
-    - name: Run govulncheck
-      run: govulncheck ./...
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...
 
   osv-scan:
     name: OSV Scanner
     needs: test
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Download OSV Scanner
-      run: |
-        VERSION="v2.2.2"
-        ARCH=$(uname -m)
-        case "$ARCH" in
-          x86_64) BINARY="osv-scanner_linux_amd64" ;;
-          aarch64) BINARY="osv-scanner_linux_arm64" ;;
-          *) BINARY="osv-scanner_linux_amd64" ;;
-        esac
-        wget -q "https://github.com/google/osv-scanner/releases/download/${VERSION}/${BINARY}" -O osv-scanner
-        chmod +x osv-scanner
-        sudo mv osv-scanner /usr/local/bin/
-        osv-scanner --version
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
 
-    - name: Run OSV scan
-      run: |
-        osv-scanner scan --lockfile=go.mod --format=json --output=osv-report.json
+      - name: Validate Go version
+        run: |
+          EXPECTED="go$(tr -d '[:space:]' < .go-version)"
+          ACTUAL="$(go env GOVERSION)"
+          echo "Expected: ${EXPECTED}"
+          echo "Actual:   ${ACTUAL}"
+          test "${ACTUAL}" = "${EXPECTED}"
 
-    - name: Upload OSV report
-      uses: actions/upload-artifact@v4
-      with:
-        name: osv-scanner-report
-        path: osv-report.json
-        retention-days: 30
-        if-no-files-found: warn
+      - name: Download OSV Scanner
+        run: |
+          VERSION="v2.3.1"
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            x86_64) BINARY="osv-scanner_linux_amd64" ;;
+            aarch64) BINARY="osv-scanner_linux_arm64" ;;
+            *) BINARY="osv-scanner_linux_amd64" ;;
+          esac
+          wget -q "https://github.com/google/osv-scanner/releases/download/${VERSION}/${BINARY}" -O osv-scanner
+          chmod +x osv-scanner
+          sudo mv osv-scanner /usr/local/bin/
+          osv-scanner --version
+
+      - name: Run OSV scan
+        run: |
+          osv-scanner scan --lockfile=go.mod --no-call-analysis=go --format=json --output=osv-report.json
+
+      - name: Upload OSV report
+        uses: actions/upload-artifact@v4
+        with:
+          name: osv-scanner-report
+          path: osv-report.json
+          retention-days: 30
+          if-no-files-found: warn
 
   dependency-check:
     name: OWASP Dependency Check
     needs: test
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Run Dependency-Check
-      uses: dependency-check/Dependency-Check_Action@main
-      continue-on-error: true
-      with:
-        project: "image-container-reporter"
-        path: "."
-        format: "HTML"
-        out: "reports"
-        args: >
-          --enableExperimental
-          --failOnCVSS 7
+      - name: Run Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        continue-on-error: true
+        with:
+          project: "image-container-reporter"
+          path: "."
+          format: "HTML"
+          out: "reports"
+          args: >
+            --enableExperimental
+            --failOnCVSS 7
 
-    - name: Upload Dependency-Check report
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: dependency-check-report
-        path: reports
-        retention-days: 30
+      - name: Upload Dependency-Check report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-report
+          path: reports
+          retention-days: 30
 
   # sonarqube:
   #   name: SonarQube Analysis
@@ -173,42 +194,50 @@ jobs:
             arch: arm64
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: .go-version
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
 
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
+      - name: Validate Go version
+        run: |
+          EXPECTED="go$(tr -d '[:space:]' < .go-version)"
+          ACTUAL="$(go env GOVERSION)"
+          echo "Expected: ${EXPECTED}"
+          echo "Actual:   ${ACTUAL}"
+          test "${ACTUAL}" = "${EXPECTED}"
 
-    - name: Download dependencies
-      run: go mod download
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-    - name: Build binary
-      run: |
-        GOOS=$(echo ${{ matrix.os }} | sed 's/ubuntu.*/linux/' | sed 's/macos.*/darwin/' | sed 's/windows.*/windows/')
-        GOARCH=${{ matrix.arch }}
-        BINARY_NAME=icr-${GOARCH}
-        if [ "$GOOS" = "windows" ]; then
-          BINARY_NAME=${BINARY_NAME}.exe
-        fi
-        echo "Building for $GOOS/$GOARCH"
-        CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-w -s" -o $BINARY_NAME ./main.go
+      - name: Download dependencies
+        run: go mod download
 
-    - name: Test binary execution
-      run: |
-        GOARCH=${{ matrix.arch }}
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          ./icr-amd64.exe --help
-        else
-          ./icr-${GOARCH} --help
-        fi
+      - name: Build binary
+        run: |
+          GOOS=$(echo ${{ matrix.os }} | sed 's/ubuntu.*/linux/' | sed 's/macos.*/darwin/' | sed 's/windows.*/windows/')
+          GOARCH=${{ matrix.arch }}
+          BINARY_NAME=icr-${GOARCH}
+          if [ "$GOOS" = "windows" ]; then
+            BINARY_NAME=${BINARY_NAME}.exe
+          fi
+          echo "Building for $GOOS/$GOARCH"
+          CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-w -s" -o $BINARY_NAME ./main.go
+
+      - name: Test binary execution
+        run: |
+          GOARCH=${{ matrix.arch }}
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            ./icr-amd64.exe --help
+          else
+            ./icr-${GOARCH} --help
+          fi
