@@ -128,11 +128,12 @@ Scan docker-compose files for image updates.
 icr scan [flags] [path]
 
 Flags:
-  -n, --notify         Send Telegram notification
-  -o, --output string  Output format (console, json, html) (default "console")
-      --output-file    Write output to file instead of stdout
-      --docker-daemon  Scan running containers via Docker daemon instead of compose files
-      --fail-on-updates Exit with non-zero code if updates are found
+  -n, --notify                   Send Telegram notification
+  -o, --output string            Output format (console, json, html) (default "console")
+      --output-file              Write output to file instead of stdout
+      --docker-daemon            Scan running containers via Docker daemon instead of compose files
+      --fail-on-updates          Exit with non-zero code if updates are found
+      --extra-images-file        YAML file listing additional Dockerfiles to scan
 ```
 
 **Docker Daemon Mode:**
@@ -274,6 +275,40 @@ icr scan --docker-daemon
 # Fail CI job if running containers have updates
 icr scan --docker-daemon --fail-on-updates
 ```
+
+### Extra Dockerfiles Mode
+
+Extends any scan (compose or daemon) with additional base images extracted from Dockerfiles not tracked by Docker itself — devcontainers, CI builder images, etc.
+
+Pass a YAML file listing absolute paths to Dockerfiles:
+
+```yaml
+# extra-images.yml
+dockerfiles:
+  - /home/runner/repositories/my-project/.devcontainer/Dockerfile
+  - /home/runner/repositories/another-app/Dockerfile
+```
+
+```bash
+icr scan --docker-daemon --extra-images-file /opt/runner/extra-images.yml
+```
+
+The parser handles:
+- **`ARG` defaults** — `ARG GO_VERSION=1.26` followed by `FROM golang:${GO_VERSION}` resolves correctly
+- **Multi-stage builds** — all `FROM` instructions are included; local stage references (`FROM builder`) are skipped automatically
+- **`--platform` flags** — ignored, image reference is extracted correctly
+- **`scratch`** — skipped (no registry to check)
+- **Missing file** — silently skipped; only errors if the file exists but is invalid
+
+If the Dockerfile uses `AS alias`, the alias becomes the service name in the report:
+
+```dockerfile
+ARG GO_VERSION=1.26
+ARG VARIANT=trixie
+FROM mcr.microsoft.com/devcontainers/go:dev-${GO_VERSION}-${VARIANT} AS devcontainer
+```
+
+When you update the `ARG` in the Dockerfile, the scanner picks up the new version automatically on the next run.
 
 ### Comparison Table
 
@@ -733,6 +768,7 @@ internal/      # Private application code
 ├── scanner/      # Core scanning logic
 ├── registry/     # Registry clients
 ├── compose/      # Docker Compose parsing
+├── extraimages/  # Extra Dockerfile scanning (--extra-images-file)
 ├── config/       # Configuration management
 ├── notifier/     # Notification clients
 ├── report/       # Report formatters
