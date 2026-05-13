@@ -34,6 +34,7 @@ type UpdateDistributionItem struct {
 // UpdateItem representa un ítem de actualización para el template
 type UpdateItem struct {
 	ServiceName  string
+	SourceFile   string
 	CurrentImage string
 	LatestImage  string
 	UpdateType   string
@@ -108,6 +109,7 @@ func (f HTMLFormatter) Format(result types.ScanResult) (string, error) {
 
 		updateItems = append(updateItems, UpdateItem{
 			ServiceName:  update.ServiceName,
+			SourceFile:   update.CurrentImage.ComposeFile,
 			CurrentImage: update.CurrentImage.String(),
 			LatestImage:  update.LatestImage.String(),
 			UpdateType:   update.UpdateType.String(),

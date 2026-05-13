@@ -491,6 +491,9 @@
                                         <i class="bi bi-box"></i>
                                         {{.ServiceName}}
                                     </div>
+                                    {{if .SourceFile}}
+                                    <div style="color: var(--text-secondary); font-size: 0.72rem; font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace; margin-top: 0.3rem; word-break: break-all;">{{.SourceFile}}</div>
+                                    {{end}}
                                 </td>
                                 <td>
                                     <code class="image-tag">{{.CurrentImage}}</code>
