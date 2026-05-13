@@ -13,6 +13,7 @@ import (
 	"github.com/user/docker-image-reporter/internal/compose"
 	"github.com/user/docker-image-reporter/internal/config"
 	"github.com/user/docker-image-reporter/internal/docker"
+	"github.com/user/docker-image-reporter/internal/extraimages"
 	"github.com/user/docker-image-reporter/internal/notifier"
 	"github.com/user/docker-image-reporter/internal/registry"
 	"github.com/user/docker-image-reporter/internal/report"
@@ -42,6 +43,7 @@ or running Docker containers for image updates. Reports available updates from c
 	cmd.Flags().String("output-file", "", "Write output to file instead of stdout")
 	cmd.Flags().Bool("docker-daemon", false, "Scan running containers via Docker daemon instead of compose files")
 	cmd.Flags().Bool("fail-on-updates", false, "Exit with non-zero code if updates are found")
+	cmd.Flags().String("extra-images-file", "", "YAML file with additional images to scan (see docs for format)")
 
 	return cmd
 }
@@ -113,6 +115,12 @@ func runScan(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("scan failed: %w", err)
 		}
 		result = *scanResultPtr
+	}
+
+	// Scan extra images from optional YAML file
+	extraImagesFile, _ := cmd.Flags().GetString("extra-images-file")
+	if extraImagesFile != "" {
+		result = scanExtraImages(ctx, extraImagesFile, cfg, result, logger)
 	}
 
 	// Crear servicios comunes
@@ -379,6 +387,39 @@ func isLocalImage(image types.DockerImage) bool {
 	}
 
 	return false
+}
+
+// scanExtraImages parses an extra images YAML file, scans them, and merges into base result.
+// A missing file is silently skipped; a file that exists but is invalid produces an error entry.
+func scanExtraImages(ctx context.Context, filePath string, cfg *types.Config, base types.ScanResult, logger *slog.Logger) types.ScanResult {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		logger.Debug("Extra images file not found, skipping", "file", filePath)
+		return base
+	}
+
+	imgs, err := extraimages.Parse(filePath)
+	if err != nil {
+		logger.Warn("Failed to parse extra images file", "file", filePath, "error", err)
+		base.Errors = append(base.Errors, fmt.Sprintf("extra-images-file: %v", err))
+		return base
+	}
+	if len(imgs) == 0 {
+		return base
+	}
+
+	logger.Info("Scanning extra images", "file", filePath, "count", len(imgs))
+	extraResult, err := createScanService(cfg).ScanImages(ctx, imgs, "extra-images")
+	if err != nil {
+		logger.Error("Extra images scan failed", "error", err)
+		base.Errors = append(base.Errors, fmt.Sprintf("extra-images scan: %v", err))
+		return base
+	}
+
+	base.UpdatesAvailable = append(base.UpdatesAvailable, extraResult.UpdatesAvailable...)
+	base.UpToDateServices = append(base.UpToDateServices, extraResult.UpToDateServices...)
+	base.Errors = append(base.Errors, extraResult.Errors...)
+	base.TotalServicesFound += extraResult.TotalServicesFound
+	return base
 }
 
 // reportService es un helper para manejar los formateadores

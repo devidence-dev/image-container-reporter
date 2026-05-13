@@ -94,6 +94,11 @@ func (p *Parser) CanParse(filePath string) bool {
 	return false
 }
 
+// ParseImageString parsea una string de imagen Docker en sus componentes.
+func (p *Parser) ParseImageString(imageStr string) (types.DockerImage, error) {
+	return p.parseImageString(imageStr)
+}
+
 // parseImageString parsea una string de imagen Docker en sus componentes
 func (p *Parser) parseImageString(imageStr string) (types.DockerImage, error) {
 	if imageStr == "" {
